@@ -174,7 +174,7 @@ export function AuthView({ onSuccess, language }: AuthViewProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-center px-6 py-8 animate-fade-in">
+    <div className="flex-1 flex flex-col justify-center px-6 py-8 animate-fade-in relative z-10">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-extrabold tracking-tight text-white">
           {isLogin 
@@ -453,6 +453,7 @@ interface ShowSeedViewProps {
 export function ShowSeedView({ onSuccess, language }: ShowSeedViewProps) {
   const [mnemonic, setMnemonic] = useState("");
   const [copied, setCopied] = useState(false);
+  const drag = useDragToScroll();
 
   useEffect(() => {
     // Generate fresh BIP39 seed phrase when view mounts
@@ -468,7 +469,7 @@ export function ShowSeedView({ onSuccess, language }: ShowSeedViewProps) {
   const words = mnemonic.split(" ");
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white animate-fade-in relative z-10">
+    <div ref={drag.ref} className="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white animate-fade-in relative z-10 overflow-y-auto scrollbar-thin cursor-grab select-none">
       <div className="text-center pt-2">
         <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
           <KeyRound className="w-6 h-6 text-indigo-400 animate-pulse-slow" />
@@ -552,6 +553,7 @@ export function ConfirmSeedView({ mnemonic, onSuccess, onBack, language }: Confi
   const [shuffledWords, setShuffledWords] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const drag = useDragToScroll();
 
   // Shuffle words when view mounts
   useEffect(() => {
@@ -581,7 +583,7 @@ export function ConfirmSeedView({ mnemonic, onSuccess, onBack, language }: Confi
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-6 bg-[#0B0E14] text-white animate-fade-in relative z-10">
+    <div ref={drag.ref} className="flex-1 flex flex-col justify-between p-6 bg-[#0B0E14] text-white animate-fade-in relative z-10 overflow-y-auto scrollbar-thin cursor-grab select-none">
       <div className="text-center pt-2">
         <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
           <CheckCircle2 className="w-6 h-6 text-indigo-400" />
@@ -1299,7 +1301,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   }, [signingPin]);
 
   return (
-    <div className="flex-1 flex flex-col justify-between bg-[#0B0E14] text-white animate-fade-in">
+    <div className="flex-1 flex flex-col justify-between bg-[#0B0E14] text-white animate-fade-in min-h-0">
       
       {/* ==========================================
           MAIN NAVIGATION CONTENT RENDERING SWITCH

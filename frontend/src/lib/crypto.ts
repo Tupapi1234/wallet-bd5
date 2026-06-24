@@ -25,7 +25,7 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const baseKey = await window.crypto.subtle.importKey(
     "raw",
-    enc.encode(pin),
+    enc.encode(pin).buffer as ArrayBuffer,
     { name: "PBKDF2" },
     false,
     ["deriveKey"]
@@ -34,7 +34,7 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
   return window.crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt.buffer as ArrayBuffer,
       iterations: 100000,
       hash: "SHA-256",
     },
@@ -56,12 +56,12 @@ export async function encryptData(text: string, pin: string): Promise<string> {
 
   const enc = new TextEncoder();
   const ciphertextBuffer = await window.crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
     key,
-    enc.encode(text)
+    enc.encode(text).buffer as ArrayBuffer
   );
 
-  return `${bufferToHex(salt)}:${bufferToHex(iv)}:${bufferToHex(ciphertextBuffer)}`;
+  return `${bufferToHex(salt.buffer as ArrayBuffer)}:${bufferToHex(iv.buffer as ArrayBuffer)}:${bufferToHex(ciphertextBuffer)}`;
 }
 
 /**
@@ -78,9 +78,9 @@ export async function decryptData(payload: string, pin: string): Promise<string>
 
   try {
     const decryptedBuffer = await window.crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: hexToBuffer(ivHex) },
+      { name: "AES-GCM", iv: hexToBuffer(ivHex).buffer as ArrayBuffer },
       key,
-      hexToBuffer(ciphertextHex)
+      hexToBuffer(ciphertextHex).buffer as ArrayBuffer
     );
     return new TextDecoder().decode(decryptedBuffer);
   } catch {

@@ -1,0 +1,376 @@
+DOCUMENTO DE REQUERIMIENTOS Y ESPECIFICACIONES 
+WALLET DESCENTRALIZADA MULTICADENA 
+ 
+1. INTRODUCCIÓN DEL PROYECTO 
+Nombre del Proyecto 
+Wallet Descentralizada Multired para Criptomonedas 
+Objetivo General 
+Desarrollar una wallet descentralizada segura, escalable y moderna que permita a los 
+usuarios gestionar activos digitales sobre múltiples blockchains, teniendo como red 
+principal Solana y soporte adicional para Bitcoin y BNB Chain. 
+La plataforma deberá ofrecer: 
+• Gestión de billeteras mediante clave semilla. 
+• Autenticación segura. 
+• Almacenamiento parcial de sesión mediante Firebase. 
+• Transferencias de activos. 
+• Recepción de criptomonedas. 
+• Historial de transacciones. 
+• Integración Web3. 
+• Arquitectura escalable para futuras integraciones DeFi y NFT. 
+ 
+2. TECNOLOGÍAS RECOMENDADAS 
+Frontend 
+• React.js / Next.js 
+• TypeScript 
+• Tailwind CSS 
+• Redux Toolkit o Zustand 
+• Web3.js / Ethers.js 
+• Solana Wallet Adapter 
+Backend 
+• Node.js 
+• Express.js o NestJS 
+• Firebase Authentication 
+• Firebase Firestore 
+• Firebase Cloud Messaging 
+Blockchain SDKs 
+• Solana Web3.js 
+• BitcoinJS 
+• BNB Chain SDK 
+• WalletConnect 
+Seguridad 
+• AES-256 Encryption 
+• BIP39 
+• BIP44 
+• Secure Storage 
+• JWT Authentication 
+Infraestructura 
+• Firebase 
+• Docker 
+• Vercel / AWS 
+• RPC Providers: 
+o QuickNode 
+o Alchemy 
+o Helius 
+ 
+3. ARQUITECTURA GENERAL DEL SISTEMA 
+Arquitectura Base 
+La wallet funcionará bajo una arquitectura híbrida: 
+Componentes: 
+1. Frontend Web/App 
+2. Módulo Blockchain 
+3. Firebase Authentication 
+4. Base de Datos Firestore 
+5. Servicios de Encriptación 
+6. API de sincronización 
+7. Módulo de transacciones 
+ 
+4. MÓDULOS PRINCIPALES DEL SISTEMA 
+4.1 MÓDULO DE AUTENTICACIÓN 
+Objetivo 
+Permitir el acceso seguro a la aplicación manteniendo la filosofía descentralizada. 
+Funcionalidades 
+• Registro de usuario. 
+• Inicio de sesión. 
+• Recuperación de sesión. 
+• Persistencia segura de acceso. 
+• Cierre de sesión. 
+• Doble autenticación (opcional). 
+Tecnologías 
+• Firebase Authentication 
+• JWT 
+• OAuth opcional 
+Características 
+• Inicio mediante correo y contraseña. 
+• Persistencia local cifrada. 
+• Validación de sesiones activas. 
+• Vinculación con dispositivo. 
+• Protección anti brute-force. 
+Seguridad 
+• Hash de credenciales. 
+• Tokens temporales. 
+• Reautenticación para acciones sensibles. 
+ 
+4.2 MÓDULO DE CREACIÓN DE WALLET 
+Objetivo 
+Permitir generar wallets descentralizadas mediante frases semilla. 
+Funcionalidades 
+• Generación de wallet. 
+• Importación mediante Seed Phrase. 
+• Exportación de claves. 
+• Derivación de direcciones. 
+Estándares 
+• BIP39 
+• BIP44 
+Características 
+• Generación de frase semilla de 12 o 24 palabras. 
+• Compatibilidad multicadena. 
+• Generación automática de: 
+o Dirección Solana 
+o Dirección Bitcoin 
+o Dirección BNB 
+Seguridad 
+• La seed nunca se almacena en servidores. 
+• Encriptación local AES-256. 
+• Confirmación obligatoria de frase semilla. 
+ 
+4.3 MÓDULO DE GESTIÓN DE ACTIVOS 
+Objetivo 
+Administrar balances y activos digitales. 
+Funcionalidades 
+• Visualización de balances. 
+• Tokens SPL. 
+• Tokens BEP20. 
+• Bitcoin balance. 
+• Actualización en tiempo real. 
+Características 
+• Balance total en USD. 
+• Conversión automática. 
+• Listado de tokens. 
+• Tokens favoritos. 
+• Ocultar balances. 
+APIs 
+• CoinGecko 
+• CoinMarketCap 
+ 
+4.4 MÓDULO DE TRANSFERENCIAS 
+Objetivo 
+Permitir envío y recepción de criptomonedas. 
+Funcionalidades 
+• Enviar tokens. 
+• Recibir activos. 
+• QR Wallet. 
+• Confirmación previa. 
+• Historial. 
+Características 
+• Detección automática de red. 
+• Validación de direcciones. 
+• Cálculo de fees. 
+• Prioridad de transacción. 
+Redes 
+Solana 
+• SOL 
+• SPL Tokens 
+Bitcoin 
+• BTC Native 
+BNB Chain 
+• BNB 
+• BEP20 
+ 
+4.5 MÓDULO DE HISTORIAL DE TRANSACCIONES 
+Objetivo 
+Mostrar movimientos realizados por el usuario. 
+Funcionalidades 
+• Historial completo. 
+• Filtrado. 
+• Estado de transacción. 
+• Explorador blockchain. 
+Características 
+• Fecha y hora. 
+• Hash de transacción. 
+• Comisión pagada. 
+• Estado: 
+o Confirmada 
+o Pendiente 
+o Fallida 
+ 
+4.6 MÓDULO DE SEGURIDAD 
+Objetivo 
+Garantizar máxima protección de activos y credenciales. 
+Funcionalidades 
+• Encriptación local. 
+• PIN de acceso. 
+• Biométrico. 
+• Auto logout. 
+Características 
+• AES-256. 
+• Bloqueo automático. 
+• Protección screenshots. 
+• Detección root/jailbreak. 
+Seguridad Avanzada 
+• Secure Enclave. 
+• Secure Storage. 
+• Anti phishing. 
+• Device fingerprint. 
+ 
+4.7 MÓDULO FIREBASE 
+Objetivo 
+Gestionar autenticación, sesiones y sincronización no crítica. 
+Servicios Firebase 
+Firebase Authentication 
+• Login. 
+• Registro. 
+• Tokens de sesión. 
+Firestore 
+• Preferencias usuario. 
+• Configuración. 
+• Historial cache. 
+Firebase Messaging 
+• Notificaciones push. 
+IMPORTANTE 
+Nunca almacenar: 
+• Seed phrase. 
+• Private keys. 
+• Datos críticos sin cifrado. 
+ 
+4.8 MÓDULO WEB3 / DAPPS 
+Objetivo 
+Permitir conexión con aplicaciones descentralizadas. 
+Funcionalidades 
+• WalletConnect. 
+• Firma de transacciones. 
+• Firma de mensajes. 
+• Conexión DApps. 
+Compatibilidades 
+• Solana DApps 
+• BNB Smart Chain 
+• Ethereum Compatible 
+ 
+4.9 MÓDULO NFT (FUTURO) 
+Funcionalidades 
+• Visualización NFTs. 
+• Transferencia NFTs. 
+• Marketplace Integration. 
+Redes 
+• Solana NFTs 
+• BNB NFTs 
+ 
+5. ESTRUCTURA DE BASE DE DATOS 
+Colección USERS 
+• UID 
+• Email 
+• Username 
+• Fecha Registro 
+• Configuración 
+Colección SETTINGS 
+• Idioma 
+• Tema 
+• Moneda Preferida 
+Colección SESSION 
+• DeviceID 
+• Último acceso 
+• Token sesión 
+ 
+6. FLUJO FUNCIONAL DEL SISTEMA 
+Registro 
+1. Usuario crea cuenta. 
+2. Firebase valida. 
+3. Se genera wallet. 
+4. Se muestra seed phrase. 
+5. Usuario confirma respaldo. 
+Inicio de Sesión 
+1. Login Firebase. 
+2. Validación local. 
+3. Descifrado wallet. 
+4. Acceso dashboard. 
+Transferencia 
+1. Usuario ingresa dirección. 
+2. Sistema valida red. 
+3. Firma transacción. 
+4. Broadcast blockchain. 
+5. Confirmación. 
+ 
+7. INTERFAZ Y EXPERIENCIA DE USUARIO 
+Diseño 
+• Minimalista. 
+• Estilo moderno fintech. 
+• Animaciones suaves. 
+• Dark Mode. 
+Pantallas 
+• Splash Screen. 
+• Login. 
+• Dashboard. 
+• Wallet. 
+• Transferencia. 
+• Historial. 
+• Configuración. 
+ 
+8. REQUERIMIENTOS NO FUNCIONALES 
+Rendimiento 
+• Respuesta menor a 2 segundos. 
+• Actualización en tiempo real. 
+Escalabilidad 
+• Modular. 
+• Microservicios opcionales. 
+Compatibilidad 
+• Android. 
+• iOS. 
+• Web. 
+Disponibilidad 
+• 99.9% uptime. 
+ 
+9. APIs Y SERVICIOS EXTERNOS 
+Blockchain APIs 
+• QuickNode 
+• Alchemy 
+• Helius 
+Datos Mercado 
+• CoinGecko 
+• CoinMarketCap 
+Seguridad 
+• Firebase App Check 
+• reCAPTCHA 
+ 
+10. ROADMAP DE DESARROLLO 
+FASE 1 
+• Arquitectura. 
+• Diseño UI/UX. 
+• Setup Firebase. 
+FASE 2 
+• Wallet Solana. 
+• Seed Phrase. 
+• Login. 
+FASE 3 
+• Integración Bitcoin. 
+• Integración BNB Chain. 
+FASE 4 
+• Transferencias. 
+• Historial. 
+• Seguridad avanzada. 
+FASE 5 
+• DApps. 
+• WalletConnect. 
+• NFT. 
+FASE 6 
+• Testing. 
+• Auditoría. 
+• Deploy producción. 
+ 
+11. PRUEBAS Y AUDITORÍA 
+Testing 
+• Unit Testing. 
+• Integration Testing. 
+• Stress Testing. 
+Auditoría 
+• Smart security review. 
+• Pentesting. 
+• Blockchain audit. 
+ 
+12. CONSIDERACIONES DE SEGURIDAD CRÍTICAS 
+1. Nunca almacenar claves privadas en Firebase. 
+2. Toda información sensible debe cifrarse localmente. 
+3. Implementar validaciones anti phishing. 
+4. Emplear almacenamiento seguro del dispositivo. 
+5. Usar conexiones HTTPS y WSS. 
+6. Implementar rate limiting. 
+7. Auditorías periódicas. 
+ 
+13. FUNCIONES FUTURAS 
+• Swap interno. 
+• Staking. 
+• Tarjeta virtual crypto. 
+• Integración DeFi. 
+• Launchpad. 
+• Trading P2P . 
+• IA antifraude. 
+• Multisig Wallet. 
+ 
+14. RESULTADO ESPERADO 
+Una wallet descentralizada: 
+• Segura. 
+• Escalable. 
+• Multicadena. 
+• Moderna. 
+• Compatible con ecosistemas Web3. 
+• Preparada para expansión DeFi y NFT. 
+ 
+ 
