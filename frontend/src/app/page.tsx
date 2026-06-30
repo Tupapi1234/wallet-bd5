@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useWalletStore } from "@/store/useWalletStore";
-import { 
-  getPersistedSession, 
-  subscribeToAuth, 
-  WalletUser 
+import {
+  getPersistedSession,
+  subscribeToAuth,
+  logoutUser,
+  WalletUser
 } from "@/lib/auth-service";
 import { 
   Coins, 
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   AuthView,
+  VerifyEmailView,
   CreatePinView,
   ShowSeedView,
   ConfirmSeedView,
@@ -28,15 +30,16 @@ import {
   MultichainDashboardView
 } from "@/components/views";
 
-type ScreenState = 
-  | "splash" 
-  | "auth" 
-  | "welcome" 
-  | "create-pin" 
-  | "show-seed" 
-  | "confirm-seed" 
-  | "import-seed" 
-  | "enter-pin" 
+type ScreenState =
+  | "splash"
+  | "auth"
+  | "verify-email"
+  | "welcome"
+  | "create-pin"
+  | "show-seed"
+  | "confirm-seed"
+  | "import-seed"
+  | "enter-pin"
   | "dashboard";
 
 export default function AetherWalletApp() {
@@ -96,6 +99,11 @@ export default function AetherWalletApp() {
       return;
     }
 
+    if (!user.emailVerified) {
+      setCurrentScreen("verify-email");
+      return;
+    }
+
     // If user is loaded, verify if they already configured a wallet
     if (encryptedSeedPayload) {
       if (isUnlocked) {
@@ -122,6 +130,18 @@ export default function AetherWalletApp() {
   // ==========================================
   const handleAuthSuccess = (loggedUser: WalletUser) => {
     setUser(loggedUser);
+  };
+
+  const handleEmailVerified = () => {
+    if (user) {
+      setUser({ ...user, emailVerified: true });
+    }
+  };
+
+  const handleLogoutForVerification = async () => {
+    await logoutUser();
+    setUser(null);
+    setCurrentScreen("auth");
   };
 
   const handleCreatePinSuccess = async (pin: string) => {
@@ -205,6 +225,16 @@ export default function AetherWalletApp() {
 
       case "auth":
         return <AuthView onSuccess={handleAuthSuccess} language={settings.language} />;
+
+      case "verify-email":
+        return (
+          <VerifyEmailView
+            email={user?.email || ""}
+            onVerified={handleEmailVerified}
+            onLogout={handleLogoutForVerification}
+            language={settings.language}
+          />
+        );
 
       case "welcome":
         return (

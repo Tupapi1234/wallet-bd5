@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useWalletStore, Transaction, NFT, ConnectedDApp } from "@/store/useWalletStore";
-import { 
-  registerUser, 
-  loginUser, 
-  WalletUser 
+import {
+  registerUser,
+  loginUser,
+  resendVerificationEmail,
+  checkEmailVerified,
+  WalletUser
 } from "@/lib/auth-service";
 import { generate12WordMnemonic, isValidMnemonic } from "@/lib/bip39-util";
 import { 
@@ -313,6 +315,129 @@ export function AuthView({ onSuccess, language }: AuthViewProps) {
             : (language === "es" ? "Inicia sesión" : "Login here")
           }
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 1.5. EMAIL VERIFICATION VIEW
+// ==========================================
+interface VerifyEmailViewProps {
+  email: string;
+  onVerified: () => void;
+  onLogout: () => void;
+  language: "es" | "en";
+}
+
+export function VerifyEmailView({ email, onVerified, onLogout, language }: VerifyEmailViewProps) {
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const verified = await checkEmailVerified();
+      if (verified) {
+        onVerified();
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [onVerified]);
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await resendVerificationEmail();
+      setResent(true);
+      setTimeout(() => setResent(false), 5000);
+    } catch {
+      // silently fail
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleManualCheck = async () => {
+    setChecking(true);
+    const verified = await checkEmailVerified();
+    if (verified) {
+      onVerified();
+    }
+    setChecking(false);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col justify-center items-center px-6 py-8 animate-fade-in text-center">
+      <div className="w-20 h-20 rounded-[28px] bg-indigo-600/10 border border-indigo-500/20 flex justify-center items-center mb-8 animate-bounce-slow">
+        <Mail className="w-10 h-10 text-indigo-400" />
+      </div>
+
+      <h2 className="text-2xl font-extrabold tracking-tight text-white mb-3">
+        {language === "es" ? "Verifica tu correo" : "Verify your email"}
+      </h2>
+
+      <p className="text-sm text-gray-400 max-w-xs leading-relaxed mb-2">
+        {language === "es"
+          ? "Hemos enviado un enlace de verificación a:"
+          : "We sent a verification link to:"}
+      </p>
+
+      <p className="text-sm font-bold text-indigo-400 mb-6">{email}</p>
+
+      <p className="text-xs text-gray-500 max-w-xs leading-relaxed mb-8">
+        {language === "es"
+          ? "Abre tu correo y haz clic en el enlace para activar tu cuenta. Esta página se actualizará automáticamente."
+          : "Open your inbox and click the link to activate your account. This page will update automatically."}
+      </p>
+
+      <div className="w-full max-w-xs space-y-3">
+        <button
+          onClick={handleManualCheck}
+          disabled={checking}
+          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 font-semibold text-white shadow-[0_10px_20px_-5px_rgba(99,102,241,0.3)] hover:from-indigo-500 hover:to-indigo-400 active:scale-[0.98] transition-all duration-150 flex justify-center items-center gap-2"
+        >
+          {checking ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{language === "es" ? "Ya verifiqué, continuar" : "I verified, continue"}</span>
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleResend}
+          disabled={resending || resent}
+          className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.98] transition-all text-xs font-bold text-gray-300 flex justify-center items-center gap-2"
+        >
+          {resent ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span className="text-emerald-400">
+                {language === "es" ? "¡Correo reenviado!" : "Email resent!"}
+              </span>
+            </>
+          ) : resending ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <span>{language === "es" ? "Reenviar correo de verificación" : "Resend verification email"}</span>
+          )}
+        </button>
+
+        <button
+          onClick={onLogout}
+          className="w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-300 transition flex justify-center items-center gap-2"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>{language === "es" ? "Usar otro correo" : "Use a different email"}</span>
+        </button>
+      </div>
+
+      <div className="mt-8 flex items-center gap-2 text-[10px] text-gray-600">
+        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+        {language === "es" ? "Verificando automáticamente cada 4 segundos..." : "Auto-checking every 4 seconds..."}
       </div>
     </div>
   );
