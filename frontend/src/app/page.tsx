@@ -339,7 +339,11 @@ export default function AetherWalletApp() {
   };
 
   return (
+<<<<<<< HEAD
     <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0B0E14] text-white">
+=======
+    <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0B0E14] text-white min-h-0">
+>>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       {/* Dynamic light effects shared across screens */}
       {currentScreen !== "splash" && currentScreen !== "welcome" && (
         <>
