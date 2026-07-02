@@ -184,12 +184,9 @@ export async function deriveBitcoinKeypair(mnemonic: string): Promise<DerivedBit
 
   // 1. Get compressed public key (33 bytes) from bip32 node
   const compressedPubKey = child.publicKey;
-<<<<<<< HEAD
-=======
   if (!compressedPubKey) {
     throw new Error("No se pudo obtener la clave pública Bitcoin.");
   }
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
 
   // 2. Perform HASH160: RIPEMD160(SHA256(compressedPubKey))
   const shaHash = sha256(compressedPubKey);
