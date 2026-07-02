@@ -858,13 +858,13 @@ type ActiveChain = "solana" | "bitcoin" | "bnb";
 type ActiveTab = "wallet" | "send" | "receive" | "web3" | "history";
 
 export function MultichainDashboardView({ language }: MultichainDashboardViewProps) {
-  const { 
-    user, 
-    walletAddresses, 
-    logout, 
-    settings, 
-    updateSettings, 
-    solanaPrivateKey, 
+  const {
+    user,
+    walletAddresses,
+    logout,
+    settings,
+    updateSettings,
+    solanaPrivateKey,
     bitcoinPrivateKey,
     bnbPrivateKey,
     lockWallet,
@@ -874,7 +874,10 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     removeNFT,
     connectedDApps,
     connectDApp,
-    disconnectDApp
+    disconnectDApp,
+    solanaBalance,
+    isFetchingBalance,
+    refreshSolanaData,
   } = useWalletStore();
 
   // Navigation and Chain state
@@ -1008,12 +1011,12 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   };
 
   const balances: Record<string, number> = {
-    SOL: 33.22,
-    BTC: 0.045,
-    BNB: 1.85,
-    USDC: 150.00,
-    USDT: 250.00,
-    BONK: 12500000
+    SOL: solanaBalance ?? 0,
+    BTC: 0,
+    BNB: 0,
+    USDC: 0,
+    USDT: 0,
+    BONK: 0
   };
 
   const getChainFromAsset = (asset: string): ActiveChain => {
@@ -1147,21 +1150,46 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     }
 
     setSendingStatus("broadcasting");
-    setTimeout(async () => {
-      const activeChainType = getChainFromAsset(sendAsset);
-      const amountUSD = amountNum * prices[sendAsset];
+    const activeChainType = getChainFromAsset(sendAsset);
+    const amountUSD = amountNum * prices[sendAsset];
 
-      await addTransaction({
-        type: "send",
-        chain: activeChainType,
-        asset: sendAsset,
-        amount: amountNum,
-        amountUSD: amountUSD,
-        recipient: recipientAddress,
-        sender: walletAddresses?.[activeChainType] || "Me",
-        fee: activeFees.crypto,
-        feeUSD: activeFees.usd
-      });
+    try {
+      if (sendAsset === "SOL" && solanaPrivateKey) {
+        // Envío REAL en la red Solana mainnet
+        const { sendSOL } = await import("@/lib/solana-service");
+        const signature = await sendSOL(solanaPrivateKey, recipientAddress, amountNum);
+
+        await addTransaction({
+          type: "send",
+          chain: "solana",
+          asset: "SOL",
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.solana || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+
+        // Update tx hash with real signature
+        console.info("Transacción Solana enviada:", signature);
+
+        // Refresh balance after sending
+        await refreshSolanaData();
+      } else {
+        // Otras cadenas: flujo simulado por ahora
+        await addTransaction({
+          type: "send",
+          chain: activeChainType,
+          asset: sendAsset,
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.[activeChainType] || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+      }
 
       setSendingStatus("success");
       setTimeout(() => {
@@ -1171,7 +1199,14 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
         setSliderVal(0);
         setActiveTab("history");
       }, 1000);
-    }, 1800);
+    } catch (err) {
+      console.error("Error al enviar:", err);
+      setSendingStatus("idle");
+      setSliderVal(0);
+      alert(language === "es"
+        ? `Error al enviar: ${err instanceof Error ? err.message : "Error desconocido"}`
+        : `Send error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   };
 
   const handleConfirmNftTransfer = () => {
@@ -1358,9 +1393,20 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 }
               </h1>
 
-              <p className="text-[10px] text-indigo-400 font-bold tracking-wider uppercase mt-1">
-                {language === "es" ? "3 Redes Sincronizadas" : "3 Sized networks linked"}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-[10px] text-indigo-400 font-bold tracking-wider uppercase">
+                  {language === "es" ? "Solana Mainnet" : "Solana Mainnet"}
+                </p>
+                <button
+                  onClick={refreshSolanaData}
+                  disabled={isFetchingBalance}
+                  className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isFetchingBalance
+                    ? (language === "es" ? "Actualizando..." : "Refreshing...")
+                    : (language === "es" ? "↻ Actualizar" : "↻ Refresh")}
+                </button>
+              </div>
             </div>
 
             {/* Network Selector Bar */}
