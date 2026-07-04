@@ -1,10 +1,12 @@
 "use client";
 
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
+  sendEmailVerification,
+  reload,
   User as FirebaseUser
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -60,9 +62,12 @@ export async function registerUser(email: string, password: string, username: st
   
   if (isFirebaseConfigured && auth && db) {
     // Firebase Registration Flow
+    auth.languageCode = "es";
     const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     const firebaseUser = userCredential.user;
-    
+
+    await sendEmailVerification(firebaseUser);
+
     // Store user data in Firestore
     const userRef = doc(db, "users", firebaseUser.uid);
     await setDoc(userRef, {
@@ -222,4 +227,25 @@ export function subscribeToAuth(callback: (user: WalletUser | null) => void): ()
     // Local mock auth doesn't have live event sockets, we return a blank cleanup
     return () => {};
   }
+}
+
+/**
+ * Sends a verification email to the currently logged-in Firebase user.
+ */
+export async function resendVerificationEmail(): Promise<void> {
+  if (isFirebaseConfigured && auth?.currentUser) {
+    auth.languageCode = "es";
+    await sendEmailVerification(auth.currentUser);
+  }
+}
+
+/**
+ * Reloads the Firebase user and checks if their email is now verified.
+ */
+export async function checkEmailVerified(): Promise<boolean> {
+  if (isFirebaseConfigured && auth?.currentUser) {
+    await reload(auth.currentUser);
+    return auth.currentUser.emailVerified;
+  }
+  return true;
 }

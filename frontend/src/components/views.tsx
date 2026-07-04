@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useWalletStore, Transaction, NFT, ConnectedDApp } from "@/store/useWalletStore";
-import { 
-  registerUser, 
-  loginUser, 
-  WalletUser 
+import {
+  registerUser,
+  loginUser,
+  resendVerificationEmail,
+  checkEmailVerified,
+  WalletUser
 } from "@/lib/auth-service";
 import { generate12WordMnemonic, isValidMnemonic } from "@/lib/bip39-util";
 import { 
@@ -139,6 +141,89 @@ function useDragToScroll() {
 interface AuthViewProps {
   onSuccess: (user: WalletUser) => void;
   language: "es" | "en";
+}
+
+interface VerifyEmailViewProps {
+  email: string;
+  onVerified: () => void;
+  onLogout: () => void;
+  language: "es" | "en";
+}
+
+export function VerifyEmailView({ email, onVerified, onLogout, language }: VerifyEmailViewProps) {
+  const [checking, setChecking] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const verified = await checkEmailVerified();
+      if (verified) {
+        clearInterval(interval);
+        onVerified();
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [onVerified]);
+
+  const handleResend = async () => {
+    try {
+      await resendVerificationEmail();
+      setResent(true);
+      setTimeout(() => setResent(false), 5000);
+    } catch {
+      setError(language === "es" ? "Error al reenviar el correo." : "Error resending email.");
+    }
+  };
+
+  const handleCheck = async () => {
+    setChecking(true);
+    const verified = await checkEmailVerified();
+    setChecking(false);
+    if (verified) {
+      onVerified();
+    } else {
+      setError(language === "es" ? "Correo aún no verificado. Revisa tu bandeja." : "Email not verified yet. Check your inbox.");
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white">
+      <div className="w-16 h-16 rounded-[22px] bg-indigo-600/10 flex justify-center items-center border border-indigo-500/20 mb-6">
+        <Mail className="w-8 h-8 text-indigo-400" />
+      </div>
+      <h2 className="text-xl font-black mb-2">
+        {language === "es" ? "Verifica tu correo" : "Verify your email"}
+      </h2>
+      <p className="text-sm text-gray-400 text-center mb-1">
+        {language === "es" ? "Enviamos un enlace de verificación a:" : "We sent a verification link to:"}
+      </p>
+      <p className="text-sm font-bold text-indigo-400 mb-6">{email}</p>
+      <p className="text-xs text-gray-500 text-center mb-6">
+        {language === "es"
+          ? "Abre tu correo, haz clic en el enlace y luego vuelve aquí."
+          : "Open your email, click the link, then come back here."}
+      </p>
+      {error && <p className="text-xs text-red-400 mb-4">{error}</p>}
+      {resent && <p className="text-xs text-emerald-400 mb-4">{language === "es" ? "¡Correo reenviado!" : "Email resent!"}</p>}
+      <button
+        onClick={handleCheck}
+        disabled={checking}
+        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-bold text-sm transition mb-3 disabled:opacity-50"
+      >
+        {checking ? (language === "es" ? "Verificando..." : "Checking...") : (language === "es" ? "Ya verifiqué mi correo" : "I verified my email")}
+      </button>
+      <button
+        onClick={handleResend}
+        className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold text-sm transition mb-3"
+      >
+        {language === "es" ? "Reenviar correo" : "Resend email"}
+      </button>
+      <button onClick={onLogout} className="text-xs text-gray-500 hover:text-gray-300 transition mt-2">
+        {language === "es" ? "Cerrar sesión" : "Log out"}
+      </button>
+    </div>
+  );
 }
 
 export function AuthView({ onSuccess, language }: AuthViewProps) {

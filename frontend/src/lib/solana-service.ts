@@ -8,7 +8,6 @@ import {
   Transaction,
   sendAndConfirmTransaction,
   Keypair,
-  clusterApiUrl,
 } from "@solana/web3.js";
 
 function decodeBase58(str: string): Uint8Array {
@@ -34,11 +33,8 @@ function decodeBase58(str: string): Uint8Array {
   return new Uint8Array(bytes.reverse());
 }
 
-// Usar mainnet-beta para producción real. Cambiar a "devnet" para pruebas sin dinero real.
-const SOLANA_NETWORK: "mainnet-beta" | "devnet" = "mainnet-beta";
-
-// RPC público de Solana. Para producción se recomienda un RPC privado (Helius, QuickNode, etc.)
-const RPC_ENDPOINT = clusterApiUrl(SOLANA_NETWORK);
+// RPC público alternativo que no requiere API key
+const RPC_ENDPOINT = "https://solana-mainnet.g.alchemy.com/v2/demo";
 
 export function getSolanaConnection(): Connection {
   return new Connection(RPC_ENDPOINT, "confirmed");

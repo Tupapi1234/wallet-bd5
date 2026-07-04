@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import {
   AuthView,
+  VerifyEmailView,
   CreatePinView,
   ShowSeedView,
   ConfirmSeedView,
@@ -28,15 +29,16 @@ import {
   MultichainDashboardView
 } from "@/components/views";
 
-type ScreenState = 
-  | "splash" 
-  | "auth" 
-  | "welcome" 
-  | "create-pin" 
-  | "show-seed" 
-  | "confirm-seed" 
-  | "import-seed" 
-  | "enter-pin" 
+type ScreenState =
+  | "splash"
+  | "auth"
+  | "verify-email"
+  | "welcome"
+  | "create-pin"
+  | "show-seed"
+  | "confirm-seed"
+  | "import-seed"
+  | "enter-pin"
   | "dashboard";
 
 export default function AetherWalletApp() {
@@ -52,9 +54,10 @@ export default function AetherWalletApp() {
     updateSettings, 
     encryptedSeedPayload, 
     isUnlocked, 
-    unlockWallet, 
+    unlockWallet,
     createWallet,
-    importWallet
+    importWallet,
+    logout
   } = useWalletStore();
 
   // ==========================================
@@ -93,6 +96,12 @@ export default function AetherWalletApp() {
 
     if (!user) {
       setCurrentScreen("auth");
+      return;
+    }
+
+    // Block access if email is not verified (Firebase mode only)
+    if (!user.emailVerified) {
+      setCurrentScreen("verify-email");
       return;
     }
 
@@ -205,6 +214,16 @@ export default function AetherWalletApp() {
 
       case "auth":
         return <AuthView onSuccess={handleAuthSuccess} language={settings.language} />;
+
+      case "verify-email":
+        return (
+          <VerifyEmailView
+            email={user?.email || ""}
+            onVerified={() => setCurrentScreen(encryptedSeedPayload ? "enter-pin" : "welcome")}
+            onLogout={() => { logout(); setCurrentScreen("auth"); }}
+            language={settings.language}
+          />
+        );
 
       case "welcome":
         return (
