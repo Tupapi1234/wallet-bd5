@@ -981,9 +981,15 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     solanaBalance,
     btcBalance,
     bnbBalance,
+    splTokens,
     isFetchingBalance,
     refreshAllBalances,
   } = useWalletStore();
+
+  const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const BONK_MINT = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+  const usdcBalance = splTokens.find(t => t.mint === USDC_MINT)?.uiAmount ?? 0;
+  const bonkBalance = splTokens.find(t => t.mint === BONK_MINT)?.uiAmount ?? 0;
 
   // Navigation and Chain state
   const [activeTab, setActiveTab] = useState<ActiveTab>("wallet");
@@ -1119,9 +1125,9 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     SOL: solanaBalance ?? 0,
     BTC: btcBalance ?? 0,
     BNB: bnbBalance ?? 0,
-    USDC: 0,
+    USDC: usdcBalance,
     USDT: 0,
-    BONK: 0
+    BONK: bonkBalance
   };
 
   const getChainFromAsset = (asset: string): ActiveChain => {
