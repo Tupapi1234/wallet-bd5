@@ -151,6 +151,89 @@ interface AuthViewProps {
   language: "es" | "en";
 }
 
+interface VerifyEmailViewProps {
+  email: string;
+  onVerified: () => void;
+  onLogout: () => void;
+  language: "es" | "en";
+}
+
+export function VerifyEmailView({ email, onVerified, onLogout, language }: VerifyEmailViewProps) {
+  const [checking, setChecking] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const verified = await checkEmailVerified();
+      if (verified) {
+        clearInterval(interval);
+        onVerified();
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [onVerified]);
+
+  const handleResend = async () => {
+    try {
+      await resendVerificationEmail();
+      setResent(true);
+      setTimeout(() => setResent(false), 5000);
+    } catch {
+      setError(language === "es" ? "Error al reenviar el correo." : "Error resending email.");
+    }
+  };
+
+  const handleCheck = async () => {
+    setChecking(true);
+    const verified = await checkEmailVerified();
+    setChecking(false);
+    if (verified) {
+      onVerified();
+    } else {
+      setError(language === "es" ? "Correo aún no verificado. Revisa tu bandeja." : "Email not verified yet. Check your inbox.");
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white">
+      <div className="w-16 h-16 rounded-[22px] bg-indigo-600/10 flex justify-center items-center border border-indigo-500/20 mb-6">
+        <Mail className="w-8 h-8 text-indigo-400" />
+      </div>
+      <h2 className="text-xl font-black mb-2">
+        {language === "es" ? "Verifica tu correo" : "Verify your email"}
+      </h2>
+      <p className="text-sm text-gray-400 text-center mb-1">
+        {language === "es" ? "Enviamos un enlace de verificación a:" : "We sent a verification link to:"}
+      </p>
+      <p className="text-sm font-bold text-indigo-400 mb-6">{email}</p>
+      <p className="text-xs text-gray-500 text-center mb-6">
+        {language === "es"
+          ? "Abre tu correo, haz clic en el enlace y luego vuelve aquí."
+          : "Open your email, click the link, then come back here."}
+      </p>
+      {error && <p className="text-xs text-red-400 mb-4">{error}</p>}
+      {resent && <p className="text-xs text-emerald-400 mb-4">{language === "es" ? "¡Correo reenviado!" : "Email resent!"}</p>}
+      <button
+        onClick={handleCheck}
+        disabled={checking}
+        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-bold text-sm transition mb-3 disabled:opacity-50"
+      >
+        {checking ? (language === "es" ? "Verificando..." : "Checking...") : (language === "es" ? "Ya verifiqué mi correo" : "I verified my email")}
+      </button>
+      <button
+        onClick={handleResend}
+        className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold text-sm transition mb-3"
+      >
+        {language === "es" ? "Reenviar correo" : "Resend email"}
+      </button>
+      <button onClick={onLogout} className="text-xs text-gray-500 hover:text-gray-300 transition mt-2">
+        {language === "es" ? "Cerrar sesión" : "Log out"}
+      </button>
+    </div>
+  );
+}
+
 export function AuthView({ onSuccess, language }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -1011,13 +1094,13 @@ type ActiveChain = "solana" | "bitcoin" | "bnb";
 type ActiveTab = "wallet" | "send" | "receive" | "web3" | "history";
 
 export function MultichainDashboardView({ language }: MultichainDashboardViewProps) {
-  const { 
-    user, 
-    walletAddresses, 
-    logout, 
-    settings, 
-    updateSettings, 
-    solanaPrivateKey, 
+  const {
+    user,
+    walletAddresses,
+    logout,
+    settings,
+    updateSettings,
+    solanaPrivateKey,
     bitcoinPrivateKey,
     bnbPrivateKey,
     lockWallet,
@@ -1027,7 +1110,10 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     removeNFT,
     connectedDApps,
     connectDApp,
-    disconnectDApp
+    disconnectDApp,
+    solanaBalance,
+    isFetchingBalance,
+    refreshSolanaData,
   } = useWalletStore();
 
   // Navigation and Chain state
@@ -1165,12 +1251,12 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   };
 
   const balances: Record<string, number> = {
-    SOL: 33.22,
-    BTC: 0.045,
-    BNB: 1.85,
-    USDC: 150.00,
-    USDT: 250.00,
-    BONK: 12500000
+    SOL: solanaBalance ?? 0,
+    BTC: 0,
+    BNB: 0,
+    USDC: 0,
+    USDT: 0,
+    BONK: 0
   };
 
   const getChainFromAsset = (asset: string): ActiveChain => {
@@ -1304,21 +1390,46 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     }
 
     setSendingStatus("broadcasting");
-    setTimeout(async () => {
-      const activeChainType = getChainFromAsset(sendAsset);
-      const amountUSD = amountNum * prices[sendAsset];
+    const activeChainType = getChainFromAsset(sendAsset);
+    const amountUSD = amountNum * prices[sendAsset];
 
-      await addTransaction({
-        type: "send",
-        chain: activeChainType,
-        asset: sendAsset,
-        amount: amountNum,
-        amountUSD: amountUSD,
-        recipient: recipientAddress,
-        sender: walletAddresses?.[activeChainType] || "Me",
-        fee: activeFees.crypto,
-        feeUSD: activeFees.usd
-      });
+    try {
+      if (sendAsset === "SOL" && solanaPrivateKey) {
+        // Envío REAL en la red Solana mainnet
+        const { sendSOL } = await import("@/lib/solana-service");
+        const signature = await sendSOL(solanaPrivateKey, recipientAddress, amountNum);
+
+        await addTransaction({
+          type: "send",
+          chain: "solana",
+          asset: "SOL",
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.solana || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+
+        // Update tx hash with real signature
+        console.info("Transacción Solana enviada:", signature);
+
+        // Refresh balance after sending
+        await refreshSolanaData();
+      } else {
+        // Otras cadenas: flujo simulado por ahora
+        await addTransaction({
+          type: "send",
+          chain: activeChainType,
+          asset: sendAsset,
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.[activeChainType] || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+      }
 
       setSendingStatus("success");
       setTimeout(() => {
@@ -1328,7 +1439,14 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
         setSliderVal(0);
         setActiveTab("history");
       }, 1000);
-    }, 1800);
+    } catch (err) {
+      console.error("Error al enviar:", err);
+      setSendingStatus("idle");
+      setSliderVal(0);
+      alert(language === "es"
+        ? `Error al enviar: ${err instanceof Error ? err.message : "Error desconocido"}`
+        : `Send error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   };
 
   const handleConfirmNftTransfer = () => {
@@ -1519,9 +1637,20 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 }
               </h1>
 
-              <p className="text-[10px] text-indigo-400 font-bold tracking-wider uppercase mt-1">
-                {language === "es" ? "3 Redes Sincronizadas" : "3 Sized networks linked"}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-[10px] text-indigo-400 font-bold tracking-wider uppercase">
+                  {language === "es" ? "Solana Mainnet" : "Solana Mainnet"}
+                </p>
+                <button
+                  onClick={refreshSolanaData}
+                  disabled={isFetchingBalance}
+                  className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isFetchingBalance
+                    ? (language === "es" ? "Actualizando..." : "Refreshing...")
+                    : (language === "es" ? "↻ Actualizar" : "↻ Refresh")}
+                </button>
+              </div>
             </div>
 
             {/* Network Selector Bar */}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { decryptData, encryptData } from '@/lib/crypto';
 import { deriveAllWallets } from '@/lib/multichain-derivation';
+import { getSolanaBalance, getSolanaTransactionHistory } from '@/lib/solana-service';
 
 export interface Transaction {
   id: string;
@@ -59,6 +60,10 @@ interface WalletState {
     bnb: string | null;
   } | null;
 
+  // Real on-chain balances
+  solanaBalance: number | null;
+  isFetchingBalance: boolean;
+
   // Sensitive Volatile State (Exclusively in memory, never saved in plaintext)
   decryptedSeed: string | null;
   solanaPrivateKey: string | null;
@@ -89,6 +94,9 @@ interface WalletState {
   lockWallet: () => void;
   logout: () => void;
 
+  // Real Solana network actions
+  refreshSolanaData: () => Promise<void>;
+
   // Transactions Actions
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'>) => Promise<void>;
 
@@ -106,6 +114,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     preferredCurrency: 'USD',
   },
   walletAddresses: null,
+  solanaBalance: null,
+  isFetchingBalance: false,
   decryptedSeed: null,
   solanaPrivateKey: null,
   bitcoinPrivateKey: null,
@@ -291,6 +301,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       },
       isUnlocked: true
     });
+
+    get().refreshSolanaData();
   },
 
   importWallet: async (mnemonic, pin) => {
@@ -322,6 +334,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       },
       isUnlocked: true
     });
+
+    // Fetch real Solana balance after unlocking
+    get().refreshSolanaData();
   },
 
   lockWallet: () => {
@@ -346,6 +361,50 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       isUnlocked: false,
       encryptedSeedPayload: null
     });
+  },
+
+  refreshSolanaData: async () => {
+    const { walletAddresses } = get();
+    const solanaAddress = walletAddresses?.solana;
+    if (!solanaAddress) return;
+
+    set({ isFetchingBalance: true });
+    try {
+      const balance = await getSolanaBalance(solanaAddress);
+      set({ solanaBalance: balance });
+
+      // Fetch real transaction history from Solana network
+      const onChainTxs = await getSolanaTransactionHistory(solanaAddress, 20);
+      const mapped: Transaction[] = onChainTxs.map((tx) => ({
+        id: tx.signature.slice(0, 12),
+        type: tx.type,
+        chain: 'solana',
+        asset: 'SOL',
+        amount: tx.amount,
+        amountUSD: 0,
+        recipient: tx.type === 'send' ? tx.otherAddress : solanaAddress,
+        sender: tx.type === 'receive' ? tx.otherAddress : solanaAddress,
+        timestamp: tx.blockTime
+          ? new Date(tx.blockTime * 1000).toISOString()
+          : new Date().toISOString(),
+        status: tx.status,
+        fee: tx.fee,
+        feeUSD: 0,
+        hash: tx.signature,
+      }));
+
+      if (mapped.length > 0) {
+        const user = get().user;
+        set({ transactions: mapped });
+        if (user) {
+          localStorage.setItem(`aether_txs_${user.uid}`, JSON.stringify(mapped));
+        }
+      }
+    } catch (err) {
+      console.error("Error al consultar la red Solana:", err);
+    } finally {
+      set({ isFetchingBalance: false });
+    }
   },
 
   addTransaction: async (tx) => {

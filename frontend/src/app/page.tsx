@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useWalletStore } from "@/store/useWalletStore";
-import {
-  getPersistedSession,
-  subscribeToAuth,
-  logoutUser,
-  WalletUser
+import { 
+  getPersistedSession, 
+  subscribeToAuth, 
+  WalletUser 
 } from "@/lib/auth-service";
 import { 
   Coins, 
@@ -55,9 +54,10 @@ export default function AetherWalletApp() {
     updateSettings, 
     encryptedSeedPayload, 
     isUnlocked, 
-    unlockWallet, 
+    unlockWallet,
     createWallet,
-    importWallet
+    importWallet,
+    logout
   } = useWalletStore();
 
   // ==========================================
@@ -99,6 +99,7 @@ export default function AetherWalletApp() {
       return;
     }
 
+    // Block access if email is not verified (Firebase mode only)
     if (!user.emailVerified) {
       setCurrentScreen("verify-email");
       return;
@@ -130,18 +131,6 @@ export default function AetherWalletApp() {
   // ==========================================
   const handleAuthSuccess = (loggedUser: WalletUser) => {
     setUser(loggedUser);
-  };
-
-  const handleEmailVerified = () => {
-    if (user) {
-      setUser({ ...user, emailVerified: true });
-    }
-  };
-
-  const handleLogoutForVerification = async () => {
-    await logoutUser();
-    setUser(null);
-    setCurrentScreen("auth");
   };
 
   const handleCreatePinSuccess = async (pin: string) => {
@@ -230,8 +219,8 @@ export default function AetherWalletApp() {
         return (
           <VerifyEmailView
             email={user?.email || ""}
-            onVerified={handleEmailVerified}
-            onLogout={handleLogoutForVerification}
+            onVerified={() => setCurrentScreen(encryptedSeedPayload ? "enter-pin" : "welcome")}
+            onLogout={() => { logout(); setCurrentScreen("auth"); }}
             language={settings.language}
           />
         );
@@ -369,11 +358,7 @@ export default function AetherWalletApp() {
   };
 
   return (
-<<<<<<< HEAD
     <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0B0E14] text-white">
-=======
-    <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0B0E14] text-white min-h-0">
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       {/* Dynamic light effects shared across screens */}
       {currentScreen !== "splash" && currentScreen !== "welcome" && (
         <>

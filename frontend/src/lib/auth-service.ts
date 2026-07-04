@@ -16,7 +16,6 @@ export interface WalletUser {
   uid: string;
   email: string;
   username: string | null;
-  emailVerified: boolean;
 }
 
 // Helper to calculate SHA-256 hash client-side for simulated auth passwords
@@ -60,9 +59,10 @@ function saveLocalUsers(users: Record<string, SimulatedUser>) {
  */
 export async function registerUser(email: string, password: string, username: string): Promise<WalletUser> {
   const cleanEmail = email.trim().toLowerCase();
-
+  
   if (isFirebaseConfigured && auth && db) {
     // Firebase Registration Flow
+    auth.languageCode = "es";
     const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     const firebaseUser = userCredential.user;
 
@@ -80,8 +80,7 @@ export async function registerUser(email: string, password: string, username: st
     return {
       uid: firebaseUser.uid,
       email: cleanEmail,
-      username: username.trim(),
-      emailVerified: false
+      username: username.trim()
     };
   } else {
     // Local Simulated Registration Flow
@@ -92,7 +91,7 @@ export async function registerUser(email: string, password: string, username: st
 
     const uid = "sim_" + Math.random().toString(36).substring(2, 15);
     const passwordHash = await hashPassword(password);
-
+    
     const newUser: SimulatedUser = {
       uid,
       email: cleanEmail,
@@ -108,8 +107,7 @@ export async function registerUser(email: string, password: string, username: st
     const walletUser: WalletUser = {
       uid,
       email: cleanEmail,
-      username: username.trim(),
-      emailVerified: true
+      username: username.trim()
     };
     localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
 
@@ -137,14 +135,13 @@ export async function loginUser(email: string, password: string): Promise<Wallet
     return {
       uid: firebaseUser.uid,
       email: cleanEmail,
-      username: username,
-      emailVerified: firebaseUser.emailVerified
+      username: username
     };
   } else {
     // Local Simulated Login Flow
     const users = getLocalUsers();
     const user = users[cleanEmail];
-
+    
     if (!user) {
       throw new Error("Usuario no encontrado o credenciales inválidas.");
     }
@@ -157,8 +154,7 @@ export async function loginUser(email: string, password: string): Promise<Wallet
     const walletUser: WalletUser = {
       uid: user.uid,
       email: user.email,
-      username: user.username,
-      emailVerified: true
+      username: user.username
     };
     localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
 
@@ -185,19 +181,18 @@ export async function logoutUser(): Promise<void> {
  */
 export function getPersistedSession(): WalletUser | null {
   if (typeof window === "undefined") return null;
-
+  
   if (isFirebaseConfigured && auth) {
     const firebaseUser = auth.currentUser;
     if (firebaseUser) {
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",
-        username: null,
-        emailVerified: firebaseUser.emailVerified
+        username: null // Username would be updated asynchronously in Zustand
       };
     }
   }
-
+  
   // Simulated mode fallback read
   const sessionStr = localStorage.getItem(ACTIVE_SESSION_KEY);
   return sessionStr ? JSON.parse(sessionStr) : null;
@@ -222,24 +217,31 @@ export function subscribeToAuth(callback: (user: WalletUser | null) => void): ()
         callback({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          username,
-          emailVerified: firebaseUser.emailVerified
+          username
         });
       } else {
         callback(null);
       }
     });
   } else {
+    // Local mock auth doesn't have live event sockets, we return a blank cleanup
     return () => {};
   }
 }
 
+/**
+ * Sends a verification email to the currently logged-in Firebase user.
+ */
 export async function resendVerificationEmail(): Promise<void> {
   if (isFirebaseConfigured && auth?.currentUser) {
+    auth.languageCode = "es";
     await sendEmailVerification(auth.currentUser);
   }
 }
 
+/**
+ * Reloads the Firebase user and checks if their email is now verified.
+ */
 export async function checkEmailVerified(): Promise<boolean> {
   if (isFirebaseConfigured && auth?.currentUser) {
     await reload(auth.currentUser);
