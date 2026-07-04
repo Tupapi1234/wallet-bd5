@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { decryptData, encryptData } from '@/lib/crypto';
 import { deriveAllWallets } from '@/lib/multichain-derivation';
-import { getSolanaBalance, getSolanaTransactionHistory } from '@/lib/solana-service';
+import { getSolanaBalance, getSolanaTransactionHistory, getSolanaTokenBalances, SolanaTokenBalance } from '@/lib/solana-service';
 import { getBtcBalance, getBtcTransactionHistory } from '@/lib/btc-service';
 import { getBnbBalance, getBnbTransactionHistory } from '@/lib/bnb-service';
 
@@ -66,6 +66,7 @@ interface WalletState {
   solanaBalance: number | null;
   btcBalance: number | null;
   bnbBalance: number | null;
+  splTokens: SolanaTokenBalance[];
   isFetchingBalance: boolean;
 
   // Sensitive Volatile State (Exclusively in memory, never saved in plaintext)
@@ -122,6 +123,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   solanaBalance: null,
   btcBalance: null,
   bnbBalance: null,
+  splTokens: [],
   isFetchingBalance: false,
   decryptedSeed: null,
   solanaPrivateKey: null,
@@ -420,11 +422,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
     set({ isFetchingBalance: true });
 
-    // Fetch all three chains in parallel
-    const [solResult, btcResult, bnbResult] = await Promise.allSettled([
+    // Fetch all three chains + SPL tokens in parallel
+    const [solResult, btcResult, bnbResult, splResult] = await Promise.allSettled([
       walletAddresses.solana ? getSolanaBalance(walletAddresses.solana) : Promise.resolve(null),
       walletAddresses.bitcoin ? getBtcBalance(walletAddresses.bitcoin) : Promise.resolve(null),
       walletAddresses.bnb ? getBnbBalance(walletAddresses.bnb) : Promise.resolve(null),
+      walletAddresses.solana ? getSolanaTokenBalances(walletAddresses.solana) : Promise.resolve([]),
     ]);
 
     if (solResult.status === "fulfilled" && solResult.value !== null) {
@@ -435,6 +438,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     }
     if (bnbResult.status === "fulfilled" && bnbResult.value !== null) {
       set({ bnbBalance: bnbResult.value });
+    }
+    if (splResult.status === "fulfilled") {
+      set({ splTokens: splResult.value });
     }
 
     // Fetch transaction history for all chains
