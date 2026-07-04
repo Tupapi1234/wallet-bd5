@@ -15,7 +15,9 @@
     "@scure/bip32": "^1.6.0",
     "@scure/bip39": "^1.5.0",
     "@solana/web3.js": "^1.95.8",
+    "bitcoinjs-lib": "^7.0.1",
     "clsx": "^2.1.1",
+    "ecpair": "^3.0.1",
     "ed25519-hd-key": "^2.0.0",
     "firebase": "^11.1.0",
     "lucide-react": "^0.468.0",
@@ -23,6 +25,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
+    "tiny-secp256k1": "^2.2.4",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

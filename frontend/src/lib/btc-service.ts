@@ -2,6 +2,105 @@
 
 const BLOCKSTREAM_API = "https://blockstream.info/api";
 
+interface UTXO {
+  txid: string;
+  vout: number;
+  value: number; // satoshis
+}
+
+async function getUTXOs(address: string): Promise<UTXO[]> {
+  const res = await fetch(`${BLOCKSTREAM_API}/address/${address}/utxo`);
+  if (!res.ok) throw new Error(`Blockstream UTXO error ${res.status}`);
+  return await res.json();
+}
+
+async function getFeeRate(): Promise<number> {
+  const res = await fetch(`${BLOCKSTREAM_API}/fee-estimates`);
+  if (!res.ok) return 10; // fallback: 10 sat/vbyte
+  const data = await res.json();
+  return Math.ceil(data["3"] ?? data["6"] ?? 10); // confirmación en ~3 bloques
+}
+
+async function broadcastTx(txHex: string): Promise<string> {
+  const res = await fetch(`${BLOCKSTREAM_API}/tx`, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: txHex,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Broadcast error: ${err}`);
+  }
+  return await res.text(); // txid
+}
+
+/**
+ * Envía BTC real. Usa UTXOs de la dirección para construir y firmar la tx.
+ * privateKeyHex: clave privada en hex (32 bytes).
+ * Retorna el txid de la transacción.
+ */
+export async function sendBTC(
+  privateKeyHex: string,
+  toAddress: string,
+  amountBTC: number
+): Promise<string> {
+  // Import bitcoinjs-lib dinámicamente para evitar problemas SSR
+  const bitcoin = await import("bitcoinjs-lib");
+  const { ECPairFactory } = await import("ecpair");
+  const tinysecp = await import("tiny-secp256k1");
+
+  const ECPair = ECPairFactory(tinysecp);
+  const network = bitcoin.networks.bitcoin;
+
+  const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKeyHex, "hex"), { network });
+  const { address: fromAddress } = bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey, network });
+
+  if (!fromAddress) throw new Error("No se pudo derivar la dirección BTC.");
+
+  const utxos = await getUTXOs(fromAddress);
+  if (utxos.length === 0) throw new Error("No hay fondos disponibles (sin UTXOs).");
+
+  const feeRate = await getFeeRate();
+  const amountSats = Math.round(amountBTC * 1e8);
+
+  // Seleccionar UTXOs suficientes (greedy)
+  let inputTotal = 0;
+  const selectedUtxos: UTXO[] = [];
+  for (const utxo of utxos.sort((a, b) => b.value - a.value)) {
+    selectedUtxos.push(utxo);
+    inputTotal += utxo.value;
+    if (inputTotal >= amountSats + feeRate * 250) break; // estimación inicial
+  }
+
+  const estimatedFee = feeRate * (148 * selectedUtxos.length + 34 * 2 + 10);
+  const change = inputTotal - amountSats - estimatedFee;
+
+  if (change < 0) throw new Error("Saldo insuficiente para cubrir el monto y la comisión.");
+
+  const psbt = new bitcoin.Psbt({ network });
+
+  for (const utxo of selectedUtxos) {
+    const txRes = await fetch(`${BLOCKSTREAM_API}/tx/${utxo.txid}/hex`);
+    const txHex = await txRes.text();
+    psbt.addInput({
+      hash: utxo.txid,
+      index: utxo.vout,
+      nonWitnessUtxo: Buffer.from(txHex, "hex"),
+    });
+  }
+
+  psbt.addOutput({ address: toAddress, value: BigInt(amountSats) });
+  if (change > 546) { // dust threshold
+    psbt.addOutput({ address: fromAddress, value: BigInt(change) });
+  }
+
+  psbt.signAllInputs(keyPair);
+  psbt.finalizeAllInputs();
+
+  const txHex = psbt.extractTransaction().toHex();
+  return await broadcastTx(txHex);
+}
+
 export interface BtcAddressInfo {
   balance: number; // en BTC
   txCount: number;

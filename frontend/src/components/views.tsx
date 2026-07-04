@@ -1287,19 +1287,41 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
 
         // Refresh balance after sending
         await refreshAllBalances();
-      } else {
-        // Otras cadenas: flujo simulado por ahora
+      } else if (sendAsset === "BTC" && bitcoinPrivateKey) {
+        const { sendBTC } = await import("@/lib/btc-service");
+        const txid = await sendBTC(bitcoinPrivateKey, recipientAddress, amountNum);
+        console.info("Transacción Bitcoin enviada:", txid);
         await addTransaction({
           type: "send",
-          chain: activeChainType,
-          asset: sendAsset,
+          chain: "bitcoin",
+          asset: "BTC",
           amount: amountNum,
           amountUSD,
           recipient: recipientAddress,
-          sender: walletAddresses?.[activeChainType] || "Me",
+          sender: walletAddresses?.bitcoin || "Me",
           fee: activeFees.crypto,
           feeUSD: activeFees.usd
         });
+        await refreshAllBalances();
+      } else if (sendAsset === "BNB" && bnbPrivateKey) {
+        const { sendBNB } = await import("@/lib/bnb-service");
+        const txHash = await sendBNB(bnbPrivateKey, recipientAddress, amountNum);
+        console.info("Transacción BNB enviada:", txHash);
+        await addTransaction({
+          type: "send",
+          chain: "bnb",
+          asset: "BNB",
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.bnb || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+        await refreshAllBalances();
+      } else {
+        // Activo no soportado para envío real
+        throw new Error(language === "es" ? "Envío no disponible para este activo." : "Send not available for this asset.");
       }
 
       setSendingStatus("success");
