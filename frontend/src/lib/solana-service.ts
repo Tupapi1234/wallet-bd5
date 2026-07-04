@@ -34,7 +34,7 @@ function decodeBase58(str: string): Uint8Array {
 }
 
 // RPC público alternativo que no requiere API key
-const RPC_ENDPOINT = "https://solana-mainnet.g.alchemy.com/v2/demo";
+const RPC_ENDPOINT = `https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`;
 
 export function getSolanaConnection(): Connection {
   return new Connection(RPC_ENDPOINT, "confirmed");
