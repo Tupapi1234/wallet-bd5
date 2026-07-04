@@ -1130,8 +1130,10 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     connectDApp,
     disconnectDApp,
     solanaBalance,
+    btcBalance,
+    bnbBalance,
     isFetchingBalance,
-    refreshSolanaData,
+    refreshAllBalances,
   } = useWalletStore();
 
   // Navigation and Chain state
@@ -1270,8 +1272,8 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
 
   const balances: Record<string, number> = {
     SOL: solanaBalance ?? 0,
-    BTC: 0,
-    BNB: 0,
+    BTC: btcBalance ?? 0,
+    BNB: bnbBalance ?? 0,
     USDC: 0,
     USDT: 0,
     BONK: 0
@@ -1433,7 +1435,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
         console.info("Transacción Solana enviada:", signature);
 
         // Refresh balance after sending
-        await refreshSolanaData();
+        await refreshAllBalances();
       } else {
         // Otras cadenas: flujo simulado por ahora
         await addTransaction({
@@ -1660,7 +1662,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                   {language === "es" ? "Solana Mainnet" : "Solana Mainnet"}
                 </p>
                 <button
-                  onClick={refreshSolanaData}
+                  onClick={refreshAllBalances}
                   disabled={isFetchingBalance}
                   className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
