@@ -423,6 +423,15 @@ export function CreatePinView({ onSuccess, language }: CreatePinViewProps) {
   };
 
   useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) handleKeyPress(e.key);
+      else if (e.key === "Backspace") handleBackspace();
+    };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [step, pin, confirmPin]);
+
+  useEffect(() => {
     // Process PIN 1st step complete
     if (step === 1 && pin.length === 6) {
       const timer = setTimeout(() => {
@@ -848,6 +857,15 @@ export function EnterPinView({ onSuccess, language }: EnterPinViewProps) {
   const handleBackspace = () => {
     setPin(prev => prev.slice(0, -1));
   };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) handleKeyPress(e.key);
+      else if (e.key === "Backspace") handleBackspace();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pin]);
 
   useEffect(() => {
     if (pin.length === 6) {
@@ -1583,7 +1601,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-gray-200">{hideBalances ? "••••" : "12,500,000 BONK"}</p>
+                        <p className="text-xs font-bold text-gray-200">{hideBalances ? "••••" : `${balances.BONK.toLocaleString()} BONK`}</p>
                         <p className="text-[9px] text-gray-500">{hideBalances ? "••••" : `$${(balances.BONK * prices.BONK).toFixed(2)}`}</p>
                       </div>
                     </div>
