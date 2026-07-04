@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { decryptData, encryptData } from '@/lib/crypto';
 import { deriveAllWallets } from '@/lib/multichain-derivation';
 import { getSolanaBalance, getSolanaTransactionHistory } from '@/lib/solana-service';
+import { getBtcBalance, getBtcTransactionHistory } from '@/lib/btc-service';
+import { getBnbBalance, getBnbTransactionHistory } from '@/lib/bnb-service';
 
 export interface Transaction {
   id: string;
@@ -61,6 +63,8 @@ interface WalletState {
 
   // Real on-chain balances
   solanaBalance: number | null;
+  btcBalance: number | null;
+  bnbBalance: number | null;
   isFetchingBalance: boolean;
 
   // Sensitive Volatile State (Exclusively in memory, never saved in plaintext)
@@ -93,8 +97,9 @@ interface WalletState {
   lockWallet: () => void;
   logout: () => void;
 
-  // Real Solana network actions
+  // Real on-chain data refresh
   refreshSolanaData: () => Promise<void>;
+  refreshAllBalances: () => Promise<void>;
 
   // Transactions Actions
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'>) => Promise<void>;
@@ -114,6 +119,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
   walletAddresses: null,
   solanaBalance: null,
+  btcBalance: null,
+  bnbBalance: null,
   isFetchingBalance: false,
   decryptedSeed: null,
   solanaPrivateKey: null,
@@ -301,7 +308,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       isUnlocked: true
     });
 
-    get().refreshSolanaData();
+    get().refreshAllBalances();
   },
 
   importWallet: async (mnemonic, pin) => {
@@ -335,7 +342,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     });
 
     // Fetch real Solana balance after unlocking
-    get().refreshSolanaData();
+    get().refreshAllBalances();
   },
 
   lockWallet: () => {
@@ -404,6 +411,115 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     } finally {
       set({ isFetchingBalance: false });
     }
+  },
+
+  refreshAllBalances: async () => {
+    const { walletAddresses } = get();
+    if (!walletAddresses) return;
+
+    set({ isFetchingBalance: true });
+
+    // Fetch all three chains in parallel
+    const [solResult, btcResult, bnbResult] = await Promise.allSettled([
+      walletAddresses.solana ? getSolanaBalance(walletAddresses.solana) : Promise.resolve(null),
+      walletAddresses.bitcoin ? getBtcBalance(walletAddresses.bitcoin) : Promise.resolve(null),
+      walletAddresses.bnb ? getBnbBalance(walletAddresses.bnb) : Promise.resolve(null),
+    ]);
+
+    if (solResult.status === "fulfilled" && solResult.value !== null) {
+      set({ solanaBalance: solResult.value });
+    }
+    if (btcResult.status === "fulfilled" && btcResult.value !== null) {
+      set({ btcBalance: btcResult.value });
+    }
+    if (bnbResult.status === "fulfilled" && bnbResult.value !== null) {
+      set({ bnbBalance: bnbResult.value });
+    }
+
+    // Fetch transaction history for all chains
+    const user = get().user;
+    const txResults = await Promise.allSettled([
+      walletAddresses.solana ? getSolanaTransactionHistory(walletAddresses.solana, 15) : Promise.resolve([]),
+      walletAddresses.bitcoin ? getBtcTransactionHistory(walletAddresses.bitcoin, 15) : Promise.resolve([]),
+      walletAddresses.bnb ? getBnbTransactionHistory(walletAddresses.bnb, 15) : Promise.resolve([]),
+    ]);
+
+    const allTxs: Transaction[] = [];
+
+    if (txResults[0].status === "fulfilled") {
+      const solAddr = walletAddresses.solana!;
+      txResults[0].value.forEach((tx) => {
+        allTxs.push({
+          id: tx.signature.slice(0, 12),
+          type: tx.type,
+          chain: "solana",
+          asset: "SOL",
+          amount: tx.amount,
+          amountUSD: 0,
+          recipient: tx.type === "send" ? tx.otherAddress : solAddr,
+          sender: tx.type === "receive" ? tx.otherAddress : solAddr,
+          timestamp: tx.blockTime ? new Date(tx.blockTime * 1000).toISOString() : new Date().toISOString(),
+          status: tx.status,
+          fee: tx.fee,
+          feeUSD: 0,
+          hash: tx.signature,
+        });
+      });
+    }
+
+    if (txResults[1].status === "fulfilled") {
+      const btcAddr = walletAddresses.bitcoin!;
+      txResults[1].value.forEach((tx) => {
+        allTxs.push({
+          id: tx.txid.slice(0, 12),
+          type: tx.type,
+          chain: "bitcoin",
+          asset: "BTC",
+          amount: tx.amount,
+          amountUSD: 0,
+          recipient: tx.type === "send" ? tx.otherAddress : btcAddr,
+          sender: tx.type === "receive" ? tx.otherAddress : btcAddr,
+          timestamp: tx.timestamp ? new Date(tx.timestamp * 1000).toISOString() : new Date().toISOString(),
+          status: tx.status,
+          fee: tx.fee,
+          feeUSD: 0,
+          hash: tx.txid,
+        });
+      });
+    }
+
+    if (txResults[2].status === "fulfilled") {
+      const bnbAddr = walletAddresses.bnb!;
+      txResults[2].value.forEach((tx) => {
+        allTxs.push({
+          id: tx.hash.slice(0, 12),
+          type: tx.type,
+          chain: "bnb",
+          asset: "BNB",
+          amount: tx.amount,
+          amountUSD: 0,
+          recipient: tx.type === "send" ? tx.otherAddress : bnbAddr,
+          sender: tx.type === "receive" ? tx.otherAddress : bnbAddr,
+          timestamp: tx.timestamp ? new Date(tx.timestamp * 1000).toISOString() : new Date().toISOString(),
+          status: tx.status,
+          fee: tx.fee,
+          feeUSD: 0,
+          hash: tx.hash,
+        });
+      });
+    }
+
+    // Sort all transactions by date (newest first)
+    allTxs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    if (allTxs.length > 0) {
+      set({ transactions: allTxs });
+      if (user) {
+        localStorage.setItem(`aether_txs_${user.uid}`, JSON.stringify(allTxs));
+      }
+    }
+
+    set({ isFetchingBalance: false });
   },
 
   addTransaction: async (tx) => {
