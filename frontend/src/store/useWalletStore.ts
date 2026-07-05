@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { decryptData, encryptData } from '@/lib/crypto';
 import { deriveAllWallets } from '@/lib/multichain-derivation';
+import { WalletUser } from '@/lib/auth-service';
 import { getSolanaBalance, getSolanaTransactionHistory, getSolanaTokenBalances, SolanaTokenBalance } from '@/lib/solana-service';
 import { getBtcBalance, getBtcTransactionHistory } from '@/lib/btc-service';
 import { getBnbBalance, getBnbTransactionHistory } from '@/lib/bnb-service';
@@ -41,12 +42,7 @@ export interface ConnectedDApp {
 
 interface WalletState {
   // Authentication State
-  user: {
-    uid: string;
-    email: string;
-    username: string | null;
-    emailVerified: boolean;
-  } | null;
+  user: WalletUser | null;
   
   // Settings (Synchronizable)
   settings: {
@@ -100,7 +96,6 @@ interface WalletState {
   logout: () => void;
 
   // Real on-chain data refresh
-  refreshSolanaData: () => Promise<void>;
   refreshAllBalances: () => Promise<void>;
 
   // Transactions Actions
@@ -370,50 +365,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       isUnlocked: false,
       encryptedSeedPayload: null
     });
-  },
-
-  refreshSolanaData: async () => {
-    const { walletAddresses } = get();
-    const solanaAddress = walletAddresses?.solana;
-    if (!solanaAddress) return;
-
-    set({ isFetchingBalance: true });
-    try {
-      const balance = await getSolanaBalance(solanaAddress);
-      set({ solanaBalance: balance });
-
-      // Fetch real transaction history from Solana network
-      const onChainTxs = await getSolanaTransactionHistory(solanaAddress, 20);
-      const mapped: Transaction[] = onChainTxs.map((tx) => ({
-        id: tx.signature.slice(0, 12),
-        type: tx.type,
-        chain: 'solana',
-        asset: 'SOL',
-        amount: tx.amount,
-        amountUSD: 0,
-        recipient: tx.type === 'send' ? tx.otherAddress : solanaAddress,
-        sender: tx.type === 'receive' ? tx.otherAddress : solanaAddress,
-        timestamp: tx.blockTime
-          ? new Date(tx.blockTime * 1000).toISOString()
-          : new Date().toISOString(),
-        status: tx.status,
-        fee: tx.fee,
-        feeUSD: 0,
-        hash: tx.signature,
-      }));
-
-      if (mapped.length > 0) {
-        const user = get().user;
-        set({ transactions: mapped });
-        if (user) {
-          localStorage.setItem(`aether_txs_${user.uid}`, JSON.stringify(mapped));
-        }
-      }
-    } catch (err) {
-      console.error("Error al consultar la red Solana:", err);
-    } finally {
-      set({ isFetchingBalance: false });
-    }
   },
 
   refreshAllBalances: async () => {
