@@ -45,6 +45,7 @@ interface WalletState {
     uid: string;
     email: string;
     username: string | null;
+    emailVerified: boolean;
   } | null;
   
   // Settings (Synchronizable)

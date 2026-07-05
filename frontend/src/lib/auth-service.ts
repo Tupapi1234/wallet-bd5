@@ -16,6 +16,7 @@ export interface WalletUser {
   uid: string;
   email: string;
   username: string | null;
+  emailVerified: boolean;
 }
 
 // Helper to calculate SHA-256 hash client-side for simulated auth passwords
@@ -80,7 +81,8 @@ export async function registerUser(email: string, password: string, username: st
     return {
       uid: firebaseUser.uid,
       email: cleanEmail,
-      username: username.trim()
+      username: username.trim(),
+      emailVerified: false // recién registrado, aún no verificado
     };
   } else {
     // Local Simulated Registration Flow
@@ -107,7 +109,8 @@ export async function registerUser(email: string, password: string, username: st
     const walletUser: WalletUser = {
       uid,
       email: cleanEmail,
-      username: username.trim()
+      username: username.trim(),
+      emailVerified: true // modo local no requiere verificación
     };
     localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
 
@@ -127,15 +130,20 @@ export async function loginUser(email: string, password: string): Promise<Wallet
     const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
     const firebaseUser = userCredential.user;
 
-    // Fetch username from Firestore
-    const userRef = doc(db, "users", firebaseUser.uid);
-    const userSnap = await getDoc(userRef);
-    const username = userSnap.exists() ? userSnap.data().username : null;
+    // Fetch username from Firestore (no crítico — si falla igual se autentica)
+    let username = null;
+    try {
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      username = userSnap.exists() ? userSnap.data().username : null;
+    } catch {
+      // Firestore offline — el usuario igual puede usar la wallet
+    }
 
     return {
       uid: firebaseUser.uid,
       email: cleanEmail,
-      username: username
+      username,
+      emailVerified: firebaseUser.emailVerified
     };
   } else {
     // Local Simulated Login Flow
@@ -154,7 +162,8 @@ export async function loginUser(email: string, password: string): Promise<Wallet
     const walletUser: WalletUser = {
       uid: user.uid,
       email: user.email,
-      username: user.username
+      username: user.username,
+      emailVerified: true // modo local no requiere verificación
     };
     localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
 
@@ -188,7 +197,8 @@ export function getPersistedSession(): WalletUser | null {
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",
-        username: null // Username would be updated asynchronously in Zustand
+        username: null,
+        emailVerified: firebaseUser.emailVerified
       };
     }
   }
@@ -210,14 +220,18 @@ export function subscribeToAuth(callback: (user: WalletUser | null) => void): ()
           try {
             const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
             username = userSnap.exists() ? userSnap.data().username : null;
-          } catch (e) {
-            console.error("Error fetching username from Firestore:", e);
+          } catch (e: any) {
+            // Firestore puede fallar por conexión — no es crítico, se reintentará
+            if (!e?.message?.includes("client is offline")) {
+              console.warn("Firestore username fetch:", e?.message);
+            }
           }
         }
         callback({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          username
+          username,
+          emailVerified: firebaseUser.emailVerified
         });
       } else {
         callback(null);
