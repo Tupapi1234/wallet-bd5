@@ -251,6 +251,14 @@ export function AuthView({ onSuccess, language }: AuthViewProps) {
         if (!username.trim()) {
           throw new Error(language === "es" ? "El nombre de usuario es obligatorio." : "Username is required.");
         }
+        const pwdRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+        if (!pwdRegex.test(password)) {
+          throw new Error(
+            language === "es"
+              ? "La contraseña debe tener mínimo 8 caracteres, al menos una letra y un número."
+              : "Password must be at least 8 characters with at least one letter and one number."
+          );
+        }
         const user = await registerUser(email, password, username);
         onSuccess(user);
       }
@@ -1071,6 +1079,82 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   // History Tab states
   const [historyFilter, setHistoryFilter] = useState<"all" | "send" | "receive">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [blockchainTxs, setBlockchainTxs] = useState<Transaction[]>([]);
+  const [fetchingHistory, setFetchingHistory] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    const fetchHistory = async () => {
+      setFetchingHistory(true);
+      const fetched: Transaction[] = [];
+      try {
+        if (walletAddresses?.solana) {
+          const { getSolanaTransactionHistory } = await import("@/lib/solana-service");
+          const solTxs = await getSolanaTransactionHistory(walletAddresses.solana, 15);
+          solTxs.forEach((tx, i) => {
+            fetched.push({
+              id: `sol-${tx.signature}`,
+              type: tx.type as "send" | "receive",
+              asset: "SOL",
+              amount: tx.amount,
+              amountUSD: tx.amount * prices.SOL,
+              timestamp: (tx.blockTime ?? 0) * 1000,
+              status: tx.status === "confirmed" ? "confirmed" : "pending",
+              txHash: tx.signature,
+              toAddress: tx.otherAddress,
+              fromAddress: walletAddresses.solana ?? "",
+              networkFee: tx.fee,
+            });
+          });
+        }
+        if (walletAddresses?.bitcoin) {
+          const { getBtcTransactionHistory } = await import("@/lib/btc-service");
+          const btcTxs = await getBtcTransactionHistory(walletAddresses.bitcoin, 10);
+          btcTxs.forEach((tx) => {
+            fetched.push({
+              id: `btc-${tx.txid}`,
+              type: tx.type,
+              asset: "BTC",
+              amount: tx.amount,
+              amountUSD: tx.amount * prices.BTC,
+              timestamp: tx.timestamp ? tx.timestamp * 1000 : Date.now(),
+              status: tx.status,
+              txHash: tx.txid,
+              toAddress: tx.otherAddress,
+              fromAddress: walletAddresses.bitcoin ?? "",
+              networkFee: tx.fee,
+            });
+          });
+        }
+        if (walletAddresses?.bnb) {
+          const { getBnbTransactionHistory } = await import("@/lib/bnb-service");
+          const bnbTxs = await getBnbTransactionHistory(walletAddresses.bnb, 10);
+          bnbTxs.forEach((tx) => {
+            fetched.push({
+              id: `bnb-${tx.hash}`,
+              type: tx.type,
+              asset: "BNB",
+              amount: tx.amount,
+              amountUSD: tx.amount * prices.BNB,
+              timestamp: tx.timestamp ? tx.timestamp * 1000 : Date.now(),
+              status: tx.status,
+              txHash: tx.hash,
+              toAddress: tx.otherAddress,
+              fromAddress: walletAddresses.bnb ?? "",
+              networkFee: tx.fee,
+            });
+          });
+        }
+        fetched.sort((a, b) => b.timestamp - a.timestamp);
+        setBlockchainTxs(fetched);
+      } catch {
+        // mantiene los datos previos si falla
+      } finally {
+        setFetchingHistory(false);
+      }
+    };
+    fetchHistory();
+  }, [activeTab, walletAddresses]);
 
   // Web3 Hub states (Fase 5 features)
   const [web3SubTab, setWeb3SubTab] = useState<"nfts" | "dapps">("nfts");
@@ -1116,14 +1200,45 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   // ==========================================
   // CORE PRICE MODELS & ADDRESS FORMAT CONTROLLERS
   // ==========================================
-  const prices: Record<string, number> = {
+  const [prices, setPrices] = useState<Record<string, number>>({
     SOL: 128.98,
     BTC: 67420.50,
     BNB: 582.40,
     USDC: 1.00,
     USDT: 1.00,
-    BONK: 0.00002
-  };
+    BONK: 0.00002,
+  });
+  const [pricesFetching, setPricesFetching] = useState(false);
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      setPricesFetching(true);
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=solana,bitcoin,binancecoin,usd-coin,bonk&vs_currencies=usd"
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setPrices({
+          SOL: data.solana?.usd ?? 128.98,
+          BTC: data.bitcoin?.usd ?? 67420.50,
+          BNB: data.binancecoin?.usd ?? 582.40,
+          USDC: data["usd-coin"]?.usd ?? 1.00,
+          USDT: 1.00,
+          BONK: data.bonk?.usd ?? 0.00002,
+        });
+        setLastPriceUpdate(new Date());
+      } catch {
+        // mantiene precios anteriores en caso de error
+      } finally {
+        setPricesFetching(false);
+      }
+    };
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const balances: Record<string, number> = {
     SOL: solanaBalance ?? 0,
@@ -1160,8 +1275,14 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
     ? `${activeAddress.slice(0, 8)}...${activeAddress.slice(-8)}`
     : activeAddress;
 
-  // Filter transactions based on type (all, send, receive)
-  const filteredTxs = (transactions || []).filter(tx => {
+  // Merge local store txs with real blockchain txs (deduplicate by txHash)
+  const allTxs = [...blockchainTxs];
+  (transactions || []).forEach(tx => {
+    if (!allTxs.find(b => b.txHash === tx.txHash)) allTxs.push(tx);
+  });
+  allTxs.sort((a, b) => b.timestamp - a.timestamp);
+
+  const filteredTxs = allTxs.filter(tx => {
     if (historyFilter === "all") return true;
     return tx.type === historyFilter;
   });
@@ -1500,11 +1621,20 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-indigo-500/5 border border-indigo-500/20">
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest">
-                  {language === "es" ? "Multired" : "Multichain"}
-                </span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-indigo-500/5 border border-indigo-500/20">
+                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest">
+                    {language === "es" ? "Multired" : "Multichain"}
+                  </span>
+                </div>
+                <button
+                  onClick={() => logout()}
+                  title={language === "es" ? "Cerrar sesión" : "Log out"}
+                  className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
@@ -1530,10 +1660,18 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 }
               </h1>
 
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-[10px] text-indigo-400 font-bold tracking-wider uppercase">
-                  {language === "es" ? "Solana Mainnet" : "Solana Mainnet"}
-                </p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap justify-center">
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${pricesFetching ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`}></span>
+                  <p className="text-[10px] text-gray-500 font-bold">
+                    {pricesFetching
+                      ? (language === "es" ? "Actualizando precios..." : "Updating prices...")
+                      : lastPriceUpdate
+                        ? (language === "es" ? `Precios: ${lastPriceUpdate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : `Prices: ${lastPriceUpdate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`)
+                        : "CoinGecko Live"
+                    }
+                  </p>
+                </div>
                 <button
                   onClick={refreshAllBalances}
                   disabled={isFetchingBalance}
@@ -1541,7 +1679,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 >
                   {isFetchingBalance
                     ? (language === "es" ? "Actualizando..." : "Refreshing...")
-                    : (language === "es" ? "↻ Actualizar" : "↻ Refresh")}
+                    : (language === "es" ? "↻ Saldos" : "↻ Balances")}
                 </button>
               </div>
             </div>
@@ -1631,7 +1769,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                         <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex justify-center items-center font-bold text-orange-400 text-[10px]">BONK</div>
                         <div>
                           <h4 className="text-xs font-bold text-gray-200">Bonk Token</h4>
-                          <p className="text-[9px] text-gray-500">$0.00002</p>
+                          <p className="text-[9px] text-gray-500">${prices.BONK.toFixed(8)}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -2340,8 +2478,14 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                 {language === "es" ? "Historial" : "Ledger History"}
               </h2>
               <p className="text-[11px] text-gray-400 mt-1">
-                {language === "es" ? "Registro cronológico de tus movimientos en la Blockchain" : "Chronological ledger record of your blockchain actions"}
+                {language === "es" ? "Transacciones reales de la Blockchain" : "Real blockchain transactions"}
               </p>
+              {fetchingHistory && (
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <div className="w-3 h-3 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+                  <span className="text-[9px] text-gray-500">{language === "es" ? "Consultando blockchain..." : "Querying blockchain..."}</span>
+                </div>
+              )}
             </div>
 
             {/* Type filters */}
