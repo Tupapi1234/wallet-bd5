@@ -63,14 +63,26 @@ export default function AetherWalletApp() {
   // Suppress Firestore "client is offline" errors from Next.js dev overlay
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
+    const FIREBASE_MSGS = ["client is offline", "Failed to get document", "FIRESTORE", "FirebaseError"];
+
     const suppress = (e: PromiseRejectionEvent) => {
       const msg = e.reason?.message || String(e.reason);
-      if (msg.includes("client is offline") || msg.includes("Failed to get document") || msg.includes("FIRESTORE")) {
-        e.preventDefault();
-      }
+      if (FIREBASE_MSGS.some(k => msg.includes(k))) e.preventDefault();
     };
     window.addEventListener("unhandledrejection", suppress);
-    return () => window.removeEventListener("unhandledrejection", suppress);
+
+    // Interceptar console.error para evitar que Next.js dev overlay lo muestre
+    const origError = console.error.bind(console);
+    console.error = (...args: unknown[]) => {
+      const msg = args.map(String).join(" ");
+      if (FIREBASE_MSGS.some(k => msg.includes(k))) return;
+      origError(...args);
+    };
+
+    return () => {
+      window.removeEventListener("unhandledrejection", suppress);
+      console.error = origError;
+    };
   }, []);
 
   // ==========================================

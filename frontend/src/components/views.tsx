@@ -42,16 +42,8 @@ import {
   Trash2,
   FileCode,
   Wallet,
-<<<<<<< HEAD
   ArrowLeft
 } from "lucide-react";
-=======
-  ArrowLeft,
-  QrCode,
-  X
-} from "lucide-react";
-import { Scanner } from '@yudiel/react-qr-scanner';
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
 // ==========================================
 // DRAG TO SCROLL CUSTOM HOOK
 // ==========================================
@@ -267,11 +259,7 @@ export function AuthView({ onSuccess, language }: AuthViewProps) {
   };
 
   return (
-<<<<<<< HEAD
     <div className="flex-1 flex flex-col justify-center px-6 py-8 animate-fade-in">
-=======
-    <div className="flex-1 flex flex-col justify-center px-6 py-8 animate-fade-in relative z-10">
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       <div className="text-center mb-8">
         <h2 className="text-2xl font-extrabold tracking-tight text-white">
           {isLogin 
@@ -398,129 +386,6 @@ export function AuthView({ onSuccess, language }: AuthViewProps) {
             : (language === "es" ? "Inicia sesión" : "Login here")
           }
         </button>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// 1.5. EMAIL VERIFICATION VIEW
-// ==========================================
-interface VerifyEmailViewProps {
-  email: string;
-  onVerified: () => void;
-  onLogout: () => void;
-  language: "es" | "en";
-}
-
-export function VerifyEmailView({ email, onVerified, onLogout, language }: VerifyEmailViewProps) {
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
-  const [checking, setChecking] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const verified = await checkEmailVerified();
-      if (verified) {
-        onVerified();
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [onVerified]);
-
-  const handleResend = async () => {
-    setResending(true);
-    try {
-      await resendVerificationEmail();
-      setResent(true);
-      setTimeout(() => setResent(false), 5000);
-    } catch {
-      // silently fail
-    } finally {
-      setResending(false);
-    }
-  };
-
-  const handleManualCheck = async () => {
-    setChecking(true);
-    const verified = await checkEmailVerified();
-    if (verified) {
-      onVerified();
-    }
-    setChecking(false);
-  };
-
-  return (
-    <div className="flex-1 flex flex-col justify-center items-center px-6 py-8 animate-fade-in text-center">
-      <div className="w-20 h-20 rounded-[28px] bg-indigo-600/10 border border-indigo-500/20 flex justify-center items-center mb-8 animate-bounce-slow">
-        <Mail className="w-10 h-10 text-indigo-400" />
-      </div>
-
-      <h2 className="text-2xl font-extrabold tracking-tight text-white mb-3">
-        {language === "es" ? "Verifica tu correo" : "Verify your email"}
-      </h2>
-
-      <p className="text-sm text-gray-400 max-w-xs leading-relaxed mb-2">
-        {language === "es"
-          ? "Hemos enviado un enlace de verificación a:"
-          : "We sent a verification link to:"}
-      </p>
-
-      <p className="text-sm font-bold text-indigo-400 mb-6">{email}</p>
-
-      <p className="text-xs text-gray-500 max-w-xs leading-relaxed mb-8">
-        {language === "es"
-          ? "Abre tu correo y haz clic en el enlace para activar tu cuenta. Esta página se actualizará automáticamente."
-          : "Open your inbox and click the link to activate your account. This page will update automatically."}
-      </p>
-
-      <div className="w-full max-w-xs space-y-3">
-        <button
-          onClick={handleManualCheck}
-          disabled={checking}
-          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 font-semibold text-white shadow-[0_10px_20px_-5px_rgba(99,102,241,0.3)] hover:from-indigo-500 hover:to-indigo-400 active:scale-[0.98] transition-all duration-150 flex justify-center items-center gap-2"
-        >
-          {checking ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{language === "es" ? "Ya verifiqué, continuar" : "I verified, continue"}</span>
-            </>
-          )}
-        </button>
-
-        <button
-          onClick={handleResend}
-          disabled={resending || resent}
-          className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.98] transition-all text-xs font-bold text-gray-300 flex justify-center items-center gap-2"
-        >
-          {resent ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-400">
-                {language === "es" ? "¡Correo reenviado!" : "Email resent!"}
-              </span>
-            </>
-          ) : resending ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <span>{language === "es" ? "Reenviar correo de verificación" : "Resend verification email"}</span>
-          )}
-        </button>
-
-        <button
-          onClick={onLogout}
-          className="w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-300 transition flex justify-center items-center gap-2"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>{language === "es" ? "Usar otro correo" : "Use a different email"}</span>
-        </button>
-      </div>
-
-      <div className="mt-8 flex items-center gap-2 text-[10px] text-gray-600">
-        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-        {language === "es" ? "Verificando automáticamente cada 4 segundos..." : "Auto-checking every 4 seconds..."}
       </div>
     </div>
   );
@@ -682,10 +547,6 @@ interface ShowSeedViewProps {
 export function ShowSeedView({ onSuccess, language }: ShowSeedViewProps) {
   const [mnemonic, setMnemonic] = useState("");
   const [copied, setCopied] = useState(false);
-<<<<<<< HEAD
-=======
-  const drag = useDragToScroll();
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
 
   useEffect(() => {
     // Generate fresh BIP39 seed phrase when view mounts
@@ -701,11 +562,7 @@ export function ShowSeedView({ onSuccess, language }: ShowSeedViewProps) {
   const words = mnemonic.split(" ");
 
   return (
-<<<<<<< HEAD
     <div className="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white animate-fade-in relative z-10">
-=======
-    <div ref={drag.ref} className="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-[#0D121F] to-[#07090E] text-white animate-fade-in relative z-10 overflow-y-auto scrollbar-thin cursor-grab select-none">
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       <div className="text-center pt-2">
         <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
           <KeyRound className="w-6 h-6 text-indigo-400 animate-pulse-slow" />
@@ -789,10 +646,6 @@ export function ConfirmSeedView({ mnemonic, onSuccess, onBack, language }: Confi
   const [shuffledWords, setShuffledWords] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-<<<<<<< HEAD
-=======
-  const drag = useDragToScroll();
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
 
   // Shuffle words when view mounts
   useEffect(() => {
@@ -822,11 +675,7 @@ export function ConfirmSeedView({ mnemonic, onSuccess, onBack, language }: Confi
   };
 
   return (
-<<<<<<< HEAD
     <div className="flex-1 flex flex-col justify-between p-6 bg-[#0B0E14] text-white animate-fade-in relative z-10">
-=======
-    <div ref={drag.ref} className="flex-1 flex flex-col justify-between p-6 bg-[#0B0E14] text-white animate-fade-in relative z-10 overflow-y-auto scrollbar-thin cursor-grab select-none">
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       <div className="text-center pt-2">
         <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
           <CheckCircle2 className="w-6 h-6 text-indigo-400" />
@@ -1147,10 +996,6 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   const [activeChain, setActiveChain] = useState<ActiveChain>("solana");
   const [copied, setCopied] = useState(false);
   const [hideBalances, setHideBalances] = useState(false);
-<<<<<<< HEAD
-=======
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
 
   // Drag to scroll hooks for mobile emulation
   const dashboardDrag = useDragToScroll();
@@ -1442,19 +1287,41 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
 
         // Refresh balance after sending
         await refreshAllBalances();
-      } else {
-        // Otras cadenas: flujo simulado por ahora
+      } else if (sendAsset === "BTC" && bitcoinPrivateKey) {
+        const { sendBTC } = await import("@/lib/btc-service");
+        const txid = await sendBTC(bitcoinPrivateKey, recipientAddress, amountNum);
+        console.info("Transacción Bitcoin enviada:", txid);
         await addTransaction({
           type: "send",
-          chain: activeChainType,
-          asset: sendAsset,
+          chain: "bitcoin",
+          asset: "BTC",
           amount: amountNum,
           amountUSD,
           recipient: recipientAddress,
-          sender: walletAddresses?.[activeChainType] || "Me",
+          sender: walletAddresses?.bitcoin || "Me",
           fee: activeFees.crypto,
           feeUSD: activeFees.usd
         });
+        await refreshAllBalances();
+      } else if (sendAsset === "BNB" && bnbPrivateKey) {
+        const { sendBNB } = await import("@/lib/bnb-service");
+        const txHash = await sendBNB(bnbPrivateKey, recipientAddress, amountNum);
+        console.info("Transacción BNB enviada:", txHash);
+        await addTransaction({
+          type: "send",
+          chain: "bnb",
+          asset: "BNB",
+          amount: amountNum,
+          amountUSD,
+          recipient: recipientAddress,
+          sender: walletAddresses?.bnb || "Me",
+          fee: activeFees.crypto,
+          feeUSD: activeFees.usd
+        });
+        await refreshAllBalances();
+      } else {
+        // Activo no soportado para envío real
+        throw new Error(language === "es" ? "Envío no disponible para este activo." : "Send not available for this asset.");
       }
 
       setSendingStatus("success");
@@ -1600,11 +1467,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   }, [signingPin]);
 
   return (
-<<<<<<< HEAD
     <div className="flex-1 flex flex-col justify-between bg-[#0B0E14] text-white animate-fade-in">
-=======
-    <div className="flex-1 flex flex-col justify-between bg-[#0B0E14] text-white animate-fade-in min-h-0">
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
       
       {/* ==========================================
           MAIN NAVIGATION CONTENT RENDERING SWITCH
@@ -2074,7 +1937,6 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                   <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
                     {language === "es" ? "Dirección del Destinatario" : "Recipient Address"}
                   </label>
-<<<<<<< HEAD
                   <input 
                     type="text"
                     required
@@ -2095,38 +1957,6 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                           : "border-white/5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     }`}
                   />
-=======
-                  <div className="relative">
-                    <input 
-                      type="text"
-                      required
-                      value={recipientAddress}
-                      onChange={(e) => setRecipientAddress(e.target.value)}
-                      placeholder={
-                        getChainFromAsset(sendAsset) === "solana" 
-                          ? (language === "es" ? "Dirección Solana Base58" : "Solana Base58 Address")
-                          : getChainFromAsset(sendAsset) === "bitcoin"
-                            ? (language === "es" ? "Dirección Bitcoin SegWit/Legacy" : "Bitcoin SegWit/Legacy Address")
-                            : (language === "es" ? "Dirección EVM 0x..." : "EVM Address 0x...")
-                      }
-                      className={`w-full bg-[#151A24] border rounded-xl py-3 pl-4 pr-12 text-xs text-white placeholder-gray-600 focus:outline-none transition-all duration-200 ${
-                        addressError 
-                          ? "border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500" 
-                          : recipientAddress && !addressError 
-                            ? "border-emerald-500/30 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                            : "border-white/5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setIsScannerOpen(true)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
-                      title={language === "es" ? "Escanear QR" : "Scan QR"}
-                    >
-                      <QrCode className="w-5 h-5" />
-                    </button>
-                  </div>
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
                   {addressError && (
                     <p className="text-[10px] text-red-400 font-bold block pt-1 animate-pulse-slow">
                       {addressError}
@@ -2251,39 +2081,6 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
           </div>
         )}
 
-<<<<<<< HEAD
-=======
-        {/* QR Scanner Modal */}
-        {isScannerOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
-            <div className="bg-[#0B0F19] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-              <div className="p-4 border-b border-white/5 flex justify-between items-center">
-                <h3 className="text-white font-bold">
-                  {language === "es" ? "Escanear Código QR" : "Scan QR Code"}
-                </h3>
-                <button
-                  onClick={() => setIsScannerOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4 bg-black relative">
-                <Scanner
-                  onScan={(result) => {
-                    if (result && result.length > 0) {
-                      setRecipientAddress(result[0].rawValue);
-                      setIsScannerOpen(false);
-                    }
-                  }}
-                  onError={(error) => console.log(error?.message)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
->>>>>>> 41d814eac61af914e51f96a7aef5f0659ff54a0f
         {/* TAB 3: RECIBIR (RECEIVE) */}
         {activeTab === "receive" && (
           <div className="space-y-5 animate-fade-in">
