@@ -1495,7 +1495,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                     {language === "es" ? "Hola, bienvenido" : "Welcome back"}
                   </p>
                   <h3 className="text-xs font-bold text-gray-200">
-                    {user?.username || (language === "es" ? "Usuario Aether" : "Aether User")}
+                    {user?.username || user?.email?.split('@')[0] || (language === "es" ? "Usuario Aether" : "Aether User")}
                   </h3>
                 </div>
               </div>
