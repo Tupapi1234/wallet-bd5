@@ -67,7 +67,7 @@ export async function decryptData(payload: string, pin: string): Promise<string>
     const decryptedBuffer = await window.crypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv as unknown as BufferSource },
       key,
-      hexToBuffer(ciphertextHex)
+      hexToBuffer(ciphertextHex) as unknown as BufferSource
     );
     return new TextDecoder().decode(decryptedBuffer);
   } catch {
