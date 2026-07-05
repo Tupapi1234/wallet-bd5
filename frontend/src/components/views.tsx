@@ -42,8 +42,11 @@ import {
   Trash2,
   FileCode,
   Wallet,
-  ArrowLeft
+  ArrowLeft,
+  QrCode,
+  X
 } from "lucide-react";
+import { Scanner } from "@yudiel/react-qr-scanner";
 // ==========================================
 // DRAG TO SCROLL CUSTOM HOOK
 // ==========================================
@@ -1058,6 +1061,7 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
   // Transaction Forms states
   const [sendAsset, setSendAsset] = useState<string>("SOL");
   const [recipientAddress, setRecipientAddress] = useState<string>("");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [sendAmount, setSendAmount] = useState<string>("");
   const [priority, setPriority] = useState<"low" | "standard" | "high">("standard");
   const [sliderVal, setSliderVal] = useState<number>(0);
@@ -1937,26 +1941,36 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
                   <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
                     {language === "es" ? "Dirección del Destinatario" : "Recipient Address"}
                   </label>
-                  <input 
-                    type="text"
-                    required
-                    value={recipientAddress}
-                    onChange={(e) => setRecipientAddress(e.target.value)}
-                    placeholder={
-                      getChainFromAsset(sendAsset) === "solana" 
-                        ? (language === "es" ? "Dirección Solana Base58" : "Solana Base58 Address")
-                        : getChainFromAsset(sendAsset) === "bitcoin"
-                          ? (language === "es" ? "Dirección Bitcoin SegWit/Legacy" : "Bitcoin SegWit/Legacy Address")
-                          : (language === "es" ? "Dirección EVM 0x..." : "EVM Address 0x...")
-                    }
-                    className={`w-full bg-[#151A24] border rounded-xl py-3 px-4 text-xs text-white placeholder-gray-600 focus:outline-none transition-all duration-200 ${
-                      addressError 
-                        ? "border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500" 
-                        : recipientAddress && !addressError 
-                          ? "border-emerald-500/30 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          : "border-white/5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    }`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={recipientAddress}
+                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      placeholder={
+                        getChainFromAsset(sendAsset) === "solana"
+                          ? (language === "es" ? "Dirección Solana Base58" : "Solana Base58 Address")
+                          : getChainFromAsset(sendAsset) === "bitcoin"
+                            ? (language === "es" ? "Dirección Bitcoin SegWit/Legacy" : "Bitcoin SegWit/Legacy Address")
+                            : (language === "es" ? "Dirección EVM 0x..." : "EVM Address 0x...")
+                      }
+                      className={`w-full bg-[#151A24] border rounded-xl py-3 pl-4 pr-12 text-xs text-white placeholder-gray-600 focus:outline-none transition-all duration-200 ${
+                        addressError
+                          ? "border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                          : recipientAddress && !addressError
+                            ? "border-emerald-500/30 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            : "border-white/5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                      title={language === "es" ? "Escanear QR" : "Scan QR"}
+                    >
+                      <QrCode className="w-5 h-5" />
+                    </button>
+                  </div>
                   {addressError && (
                     <p className="text-[10px] text-red-400 font-bold block pt-1 animate-pulse-slow">
                       {addressError}
@@ -2782,6 +2796,36 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
               </>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* QR Scanner Modal */}
+      {isScannerOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+          <div className="bg-[#0B0F19] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-white font-bold text-sm">
+                {language === "es" ? "Escanear Código QR" : "Scan QR Code"}
+              </h3>
+              <button
+                onClick={() => setIsScannerOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 bg-black">
+              <Scanner
+                onScan={(result) => {
+                  if (result && result.length > 0) {
+                    setRecipientAddress(result[0].rawValue);
+                    setIsScannerOpen(false);
+                  }
+                }}
+                onError={(error) => console.warn("QR Scanner error:", error?.message)}
+              />
+            </div>
           </div>
         </div>
       )}
