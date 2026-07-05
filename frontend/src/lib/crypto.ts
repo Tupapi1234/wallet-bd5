@@ -1,14 +1,8 @@
-/**
- * Client-side cryptographic utilities using the native Web Crypto API.
- * Encrypts and decrypts sensitive data (seed phrases, private keys)
- * locally using AES-GCM-256 derived from the user's PIN/Password via PBKDF2.
- *
- * SECURITY: This module runs EXCLUSIVELY on the client.
- * No seed phrase or private key ever leaves the browser.
- */
+"use client";
 
-function bufferToHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
+function bufferToHex(buf: ArrayBuffer | Uint8Array): string {
+  const view = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return Array.from(view)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
@@ -45,10 +39,6 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
   );
 }
 
-/**
- * Encrypts cleartext using a PIN.
- * Returns a payload string: "saltHex:ivHex:ciphertextHex"
- */
 export async function encryptData(text: string, pin: string): Promise<string> {
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -56,29 +46,26 @@ export async function encryptData(text: string, pin: string): Promise<string> {
 
   const enc = new TextEncoder();
   const ciphertextBuffer = await window.crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as unknown as BufferSource },
     key,
     enc.encode(text)
   );
 
-  return `${bufferToHex(salt)}:${bufferToHex(iv)}:${bufferToHex(ciphertextBuffer)}`;
+  return `${bufferToHex(salt)}:${bufferToHex(iv)}:${bufferToHex(new Uint8Array(ciphertextBuffer))}`;
 }
 
-/**
- * Decrypts a payload string using the PIN.
- * Throws if the PIN is incorrect.
- */
 export async function decryptData(payload: string, pin: string): Promise<string> {
   const [saltHex, ivHex, ciphertextHex] = payload.split(":");
   if (!saltHex || !ivHex || !ciphertextHex) {
     throw new Error("Formato de datos cifrados inválido.");
   }
 
+  const iv = hexToBuffer(ivHex);
   const key = await deriveKey(pin, hexToBuffer(saltHex));
 
   try {
     const decryptedBuffer = await window.crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: hexToBuffer(ivHex) },
+      { name: "AES-GCM", iv: iv as unknown as BufferSource },
       key,
       hexToBuffer(ciphertextHex)
     );
