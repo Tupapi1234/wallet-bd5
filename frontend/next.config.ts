@@ -14,7 +14,7 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@solana/web3.js", "bitcoinjs-lib"],
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
@@ -30,6 +30,12 @@ const nextConfig: NextConfig = {
       tls: false,
       crypto: false,
     };
+    if (!isServer) {
+      config.resolve.alias = {
+        ...(config.resolve.alias || {}),
+        "pino-pretty": require("path").resolve(__dirname, "mocks/pino-pretty.js"),
+      };
+    }
     return config;
   },
 };
