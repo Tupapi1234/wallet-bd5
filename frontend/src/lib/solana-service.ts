@@ -9,6 +9,10 @@ import {
   sendAndConfirmTransaction,
   Keypair,
 } from "@solana/web3.js";
+import { 
+  getOrCreateAssociatedTokenAccount, 
+  createTransferInstruction 
+} from "@solana/spl-token";
 
 function decodeBase58(str: string): Uint8Array {
   const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -33,8 +37,10 @@ function decodeBase58(str: string): Uint8Array {
   return new Uint8Array(bytes.reverse());
 }
 
-// RPC público alternativo que no requiere API key
-const RPC_ENDPOINT = `https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`;
+const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+const RPC_ENDPOINT = isTestnet
+  ? "https://api.devnet.solana.com"
+  : `https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`;
 
 export function getSolanaConnection(): Connection {
   return new Connection(RPC_ENDPOINT, "confirmed");
@@ -190,4 +196,90 @@ export async function estimateSolanaFee(): Promise<number> {
   const { feeCalculator } = await connection.getRecentBlockhash();
   // Una transacción simple de transferencia usa 1 firma = 5000 lamports aprox
   return (feeCalculator?.lamportsPerSignature ?? 5000) / LAMPORTS_PER_SOL;
+}
+
+/**
+ * Consulta los NFTs de una dirección usando Helius DAS API.
+ */
+export async function getSolanaNFTs(publicKeyStr: string): Promise<any[]> {
+  const response = await fetch(RPC_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'my-id',
+      method: 'getAssetsByOwner',
+      params: {
+        ownerAddress: publicKeyStr,
+        page: 1,
+        limit: 50,
+      }
+    })
+  });
+  
+  const { result } = await response.json();
+  if (!result || !result.items) return [];
+
+  return result.items.map((item: any) => {
+    // Only return NFTs (typically items without decimals or specific interface)
+    // The DAS API returns all assets, including tokens, so we filter out regular fungible tokens if possible.
+    // In DAS, NFTs often have interface 'V1_NFT' or 'Custom'
+    const imageUrl = item.content?.links?.image || item.content?.files?.[0]?.uri || 'linear-gradient(135deg, #14F195 0%, #9945FF 100%)';
+    const name = item.content?.metadata?.name || 'Unknown NFT';
+    return {
+      id: item.id,
+      name,
+      collection: item.grouping?.find((g: any) => g.group_key === 'collection')?.group_value || name,
+      chain: 'solana',
+      imageUrl,
+      description: item.content?.metadata?.description || '',
+      mintAddress: item.id,
+    };
+  }).filter((nft: any) => nft.name !== 'Unknown NFT');
+}
+
+/**
+ * Envía un NFT (SPL Token con balance de 1) desde la wallet del usuario a una dirección destino.
+ * Requiere la clave privada en formato Base58.
+ * Retorna la firma de la transacción.
+ */
+export async function sendSolanaNFT(
+  privateKeyBase58: string,
+  toAddressStr: string,
+  mintAddressStr: string
+): Promise<string> {
+  const connection = getSolanaConnection();
+  const privateKeyBytes = decodeBase58(privateKeyBase58);
+  const senderKeypair = Keypair.fromSecretKey(privateKeyBytes);
+  const toPublicKey = new PublicKey(toAddressStr);
+  const mintPublicKey = new PublicKey(mintAddressStr);
+
+  const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
+    connection,
+    senderKeypair,
+    mintPublicKey,
+    senderKeypair.publicKey
+  );
+
+  const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+    connection,
+    senderKeypair,
+    mintPublicKey,
+    toPublicKey
+  );
+
+  const transaction = new Transaction().add(
+    createTransferInstruction(
+      senderTokenAccount.address,
+      recipientTokenAccount.address,
+      senderKeypair.publicKey,
+      1 // NFTs siempre se envían en cantidad 1, asumiendo 0 decimales
+    )
+  );
+
+  const signature = await sendAndConfirmTransaction(connection, transaction, [
+    senderKeypair,
+  ]);
+
+  return signature;
 }

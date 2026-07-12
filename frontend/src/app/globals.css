@@ -3,9 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --background: #0B0E14;
-  --foreground: #F3F4F6;
+  --background: #F9FAFB; /* Light Gray */
+  --foreground: #111827; /* Dark Gray */
+  --card: #FFFFFF; /* Pure White */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.dark {
+  --background: #0B0E14; /* Original Dark */
+  --foreground: #F3F4F6; /* Original Light Text */
+  --card: #151A24; /* Original Card Dark */
 }
 
 body {

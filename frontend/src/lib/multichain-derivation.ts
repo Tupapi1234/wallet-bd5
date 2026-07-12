@@ -48,9 +48,10 @@ export function toEVMChecksumAddress(address: string): string {
  * for compressed public keys (Mainnet).
  */
 export function toBitcoinWIF(privateKeyBytes: Uint8Array): string {
-  // WIF compressed format: [0x80 (version)] + [32 bytes private key] + [0x01 (compressed flag)]
+  // WIF compressed format: [0x80/0xef (version)] + [32 bytes private key] + [0x01 (compressed flag)]
   const wifBytes = new Uint8Array(1 + 32 + 1);
-  wifBytes[0] = 0x80; // Mainnet private key prefix
+  const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+  wifBytes[0] = isTestnet ? 0xef : 0x80; // Mainnet private key prefix is 0x80, Testnet is 0xef
   wifBytes.set(privateKeyBytes, 1);
   wifBytes[33] = 0x01; // Compressed public key flag
   
@@ -175,8 +176,10 @@ export async function deriveBitcoinKeypair(mnemonic: string): Promise<DerivedBit
   const seed = await mnemonicToSeedBuffer(mnemonic);
   const root = HDKey.fromMasterSeed(seed);
   
-  // Derivation path m/84'/0'/0'/0/0 (BIP84)
-  const child = root.derive("m/84'/0'/0'/0/0");
+  // Derivation path m/84'/0'/0'/0/0 (BIP84 Mainnet) or m/84'/1'/0'/0/0 (BIP84 Testnet)
+  const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+  const path = isTestnet ? "m/84'/1'/0'/0/0" : "m/84'/0'/0'/0/0";
+  const child = root.derive(path);
   
   if (!child.privateKey) {
     throw new Error("No se pudo derivar la clave privada Bitcoin.");
@@ -200,8 +203,8 @@ export async function deriveBitcoinKeypair(mnemonic: string): Promise<DerivedBit
   versionedWords[0] = 0;
   versionedWords.set(words, 1);
 
-  // 5. Encode using Bech32 with human-readable part 'bc' (Mainnet)
-  const address = bech32.encode("bc", versionedWords);
+  // 5. Encode using Bech32 with human-readable part 'bc' (Mainnet) or 'tb' (Testnet)
+  const address = bech32.encode(isTestnet ? "tb" : "bc", versionedWords);
 
   return {
     address,

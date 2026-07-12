@@ -3,8 +3,12 @@
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 
-// BSC public RPC — no API key required
-const BSC_RPC = "https://bsc-dataseed.binance.org/";
+const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+
+// BSC public RPC
+const BSC_RPC = isTestnet
+  ? "https://data-seed-prebsc-1-s1.binance.org:8545/"
+  : "https://bsc-dataseed.binance.org/";
 
 async function rpcCall(method: string, params: unknown[]): Promise<any> {
   const res = await fetch(BSC_RPC, {
@@ -35,7 +39,9 @@ export interface BnbTransaction {
 }
 
 // BSC RPC no expone historial directamente — usamos BscScan API pública (sin key, límite básico)
-const BSCSCAN_API = "https://api.bscscan.com/api";
+const BSCSCAN_API = isTestnet
+  ? "https://api-testnet.bscscan.com/api"
+  : "https://api.bscscan.com/api";
 
 function hexToBytes(hex: string): Uint8Array {
   const h = hex.startsWith("0x") ? hex.slice(2) : hex;
@@ -98,7 +104,8 @@ export async function sendBNB(
     rpcCall("eth_gasPrice", []) as Promise<string>,
   ]);
 
-  const chainId = 56n; // BSC mainnet
+  const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+  const chainId = isTestnet ? 97n : 56n; // BSC mainnet 56n, BSC testnet 97n
   const gasLimit = 21000n;
   const value = BigInt(Math.round(amountBNB * 1e18));
   const nonceBig = BigInt(nonce);

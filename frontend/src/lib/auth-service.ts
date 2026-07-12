@@ -9,7 +9,7 @@ import {
   reload,
   User as FirebaseUser
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, db, isFirebaseConfigured } from "./firebase";
 
 export interface WalletUser {
@@ -17,158 +17,89 @@ export interface WalletUser {
   email: string;
   username: string | null;
   emailVerified: boolean;
-}
-
-// Helper to calculate SHA-256 hash client-side for simulated auth passwords
-async function hashPassword(password: string): Promise<string> {
-  if (typeof window === "undefined" || !window.crypto || !window.crypto.subtle) {
-    return password; // Fallback for pure SSR
-  }
-  const msgUint8 = new TextEncoder().encode(password);
-  const hashBuffer = await window.crypto.subtle.digest("SHA-256", msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// Database type for local simulated fallback auth
-interface SimulatedUser {
-  uid: string;
-  email: string;
-  username: string | null;
-  passwordHash: string;
-  createdAt: string;
-}
-
-const LOCAL_USERS_KEY = "aether_simulated_users";
-const ACTIVE_SESSION_KEY = "aether_simulated_active_session";
-
-function getLocalUsers(): Record<string, SimulatedUser> {
-  if (typeof window === "undefined") return {};
-  const stored = localStorage.getItem(LOCAL_USERS_KEY);
-  return stored ? JSON.parse(stored) : {};
-}
-
-function saveLocalUsers(users: Record<string, SimulatedUser>) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
-  }
+  hasWallet?: boolean;
 }
 
 /**
- * Registers a new user account.
- * Supports Firebase and simulated LocalStorage fallback.
+ * Registers a new user account strictly via Firebase.
  */
 export async function registerUser(email: string, password: string, username: string): Promise<WalletUser> {
   const cleanEmail = email.trim().toLowerCase();
   
-  if (isFirebaseConfigured && auth && db) {
-    // Firebase Registration Flow
-    auth.languageCode = "es";
-    const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-    const firebaseUser = userCredential.user;
-
-    await sendEmailVerification(firebaseUser);
-
-    // Store user data in Firestore
-    const userRef = doc(db, "users", firebaseUser.uid);
-    await setDoc(userRef, {
-      uid: firebaseUser.uid,
-      email: cleanEmail,
-      username: username.trim(),
-      createdAt: new Date().toISOString()
-    });
-
-    return {
-      uid: firebaseUser.uid,
-      email: cleanEmail,
-      username: username.trim(),
-      emailVerified: false // recién registrado, aún no verificado
-    };
-  } else {
-    // Local Simulated Registration Flow
-    const users = getLocalUsers();
-    if (users[cleanEmail]) {
-      throw new Error("El correo electrónico ya se encuentra registrado.");
-    }
-
-    const uid = "sim_" + Math.random().toString(36).substring(2, 15);
-    const passwordHash = await hashPassword(password);
-    
-    const newUser: SimulatedUser = {
-      uid,
-      email: cleanEmail,
-      username: username.trim(),
-      passwordHash,
-      createdAt: new Date().toISOString()
-    };
-
-    users[cleanEmail] = newUser;
-    saveLocalUsers(users);
-
-    // Save active session in localStorage
-    const walletUser: WalletUser = {
-      uid,
-      email: cleanEmail,
-      username: username.trim(),
-      emailVerified: true // modo local no requiere verificación
-    };
-    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
-
-    return walletUser;
+  if (!isFirebaseConfigured || !auth || !db) {
+    throw new Error("La conexión a Firebase no está configurada correctamente.");
   }
+
+  // Firebase Registration Flow
+  auth.languageCode = "es";
+  const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+  const firebaseUser = userCredential.user;
+
+  await sendEmailVerification(firebaseUser);
+
+  // Store user data in Firestore
+  const userRef = doc(db, "users", firebaseUser.uid);
+  await setDoc(userRef, {
+    uid: firebaseUser.uid,
+    email: cleanEmail,
+    username: username.trim(),
+    hasWallet: false,
+    createdAt: new Date().toISOString()
+  });
+
+  return {
+    uid: firebaseUser.uid,
+    email: cleanEmail,
+    username: username.trim(),
+    emailVerified: false, // recién registrado, aún no verificado
+    hasWallet: false
+  };
 }
 
 /**
- * Logs in an existing user.
- * Supports Firebase and simulated LocalStorage fallback.
+ * Logs in an existing user strictly via Firebase.
  */
 export async function loginUser(email: string, password: string): Promise<WalletUser> {
   const cleanEmail = email.trim().toLowerCase();
 
-  if (isFirebaseConfigured && auth && db) {
-    // Firebase Login Flow
-    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-    const firebaseUser = userCredential.user;
-
-    // Fetch username from Firestore (no crítico — si falla igual se autentica)
-    let username = null;
-    try {
-      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-      username = userSnap.exists() ? userSnap.data().username : null;
-    } catch {
-      // Firestore offline — el usuario igual puede usar la wallet
-    }
-
-    return {
-      uid: firebaseUser.uid,
-      email: cleanEmail,
-      username,
-      emailVerified: firebaseUser.emailVerified
-    };
-  } else {
-    // Local Simulated Login Flow
-    const users = getLocalUsers();
-    const user = users[cleanEmail];
-    
-    if (!user) {
-      throw new Error("Usuario no encontrado o credenciales inválidas.");
-    }
-
-    const calculatedHash = await hashPassword(password);
-    if (user.passwordHash !== calculatedHash) {
-      throw new Error("Contraseña incorrecta.");
-    }
-
-    const walletUser: WalletUser = {
-      uid: user.uid,
-      email: user.email,
-      username: user.username,
-      emailVerified: true // modo local no requiere verificación
-    };
-    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(walletUser));
-
-    return walletUser;
+  if (!isFirebaseConfigured || !auth || !db) {
+    throw new Error("La conexión a Firebase no está configurada correctamente.");
   }
+
+  // Firebase Login Flow
+  const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+  const firebaseUser = userCredential.user;
+
+  // Fetch user data from Firestore to get the real hasWallet status
+  let hasWallet = false;
+  
+  // OPTIMIZATION 1: Check local storage first. It's instantaneous.
+  const localKey = `aether_wallet_encrypted_${firebaseUser.uid}`;
+  if (typeof window !== "undefined" && localStorage.getItem(localKey)) {
+    hasWallet = true;
+  } else {
+    // OPTIMIZATION 2: If not in local storage, check Firestore but with a strict 3-second timeout
+    // to prevent Google Cloud gRPC retries from freezing the login screen for 10+ seconds.
+    try {
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore Timeout")), 3000));
+      const docPromise = getDoc(doc(db, "users", firebaseUser.uid));
+      const userDoc = await Promise.race([docPromise, timeoutPromise]) as any;
+      
+      if (userDoc && userDoc.exists && userDoc.exists()) {
+        hasWallet = userDoc.data().hasWallet === true;
+      }
+    } catch (err) {
+      console.warn("Skipping slow Firestore check on login due to timeout or error.");
+    }
+  }
+
+  return {
+    uid: firebaseUser.uid,
+    email: cleanEmail,
+    username: null,
+    emailVerified: firebaseUser.emailVerified,
+    hasWallet
+  };
 }
 
 /**
@@ -177,16 +108,11 @@ export async function loginUser(email: string, password: string): Promise<Wallet
 export async function logoutUser(): Promise<void> {
   if (isFirebaseConfigured && auth) {
     await signOut(auth);
-  } else {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-    }
   }
 }
 
 /**
- * Checks for a persisting active session.
- * Used for instant session recovery.
+ * Checks for a persisting active session (Instant sync).
  */
 export function getPersistedSession(): WalletUser | null {
   if (typeof window === "undefined") return null;
@@ -197,50 +123,78 @@ export function getPersistedSession(): WalletUser | null {
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",
-        username: null,
+        username: null, // Will be hydrated later via subscribeToAuth
         emailVerified: firebaseUser.emailVerified
       };
     }
   }
   
-  // Simulated mode fallback read
-  const sessionStr = localStorage.getItem(ACTIVE_SESSION_KEY);
-  return sessionStr ? JSON.parse(sessionStr) : null;
+  return null;
 }
 
-/**
- * Subscribes to authentication state changes.
- */
 export function subscribeToAuth(callback: (user: WalletUser | null) => void): () => void {
-  if (isFirebaseConfigured && auth) {
-    return onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        let username = null;
-        if (db) {
-          try {
-            const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-            username = userSnap.exists() ? userSnap.data().username : null;
-          } catch (e: any) {
-            // Firestore puede fallar por conexión — no es crítico, se reintentará
-            if (!e?.message?.includes("client is offline")) {
-              console.warn("Firestore username fetch:", e?.message);
-            }
+  if (!isFirebaseConfigured || !auth) {
+    return () => {};
+  }
+
+  let firestoreUnsub: (() => void) | null = null;
+
+  const authUnsub = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+    if (firestoreUnsub) {
+      firestoreUnsub();
+      firestoreUnsub = null;
+    }
+
+    if (firebaseUser) {
+      // Only emit user data AFTER Firestore confirms the real hasWallet status.
+      // This prevents the race condition where hasWallet:false overwrites the correct value.
+      if (db) {
+        firestoreUnsub = onSnapshot(doc(db, "users", firebaseUser.uid), (userSnap) => {
+          let username = null;
+          let hasWallet = false;
+          if (userSnap.exists()) {
+            username = userSnap.data().username;
+            hasWallet = userSnap.data().hasWallet || false;
           }
-        }
+          callback({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || "",
+            username,
+            emailVerified: firebaseUser.emailVerified,
+            hasWallet
+          });
+        }, (error: any) => {
+          if (!error?.message?.includes("client is offline")) {
+            console.warn("Firestore snapshot fetch error:", error?.message);
+          }
+          // On Firestore error, fall back to basic auth data without hasWallet
+          callback({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || "",
+            username: null,
+            emailVerified: firebaseUser.emailVerified,
+            hasWallet: false
+          });
+        });
+      } else {
+        // No Firestore available, emit basic auth data
         callback({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          username,
-          emailVerified: firebaseUser.emailVerified
+          username: null,
+          emailVerified: firebaseUser.emailVerified,
+          hasWallet: false
         });
-      } else {
-        callback(null);
       }
-    });
-  } else {
-    // Local mock auth doesn't have live event sockets, we return a blank cleanup
-    return () => {};
-  }
+    } else {
+      callback(null);
+    }
+  });
+
+  return () => {
+    if (firestoreUnsub) firestoreUnsub();
+    authUnsub();
+  };
 }
 
 /**
@@ -262,4 +216,61 @@ export async function checkEmailVerified(): Promise<boolean> {
     return auth.currentUser.emailVerified;
   }
   return true;
+}
+
+/**
+ * Marks the user's wallet as created in the database.
+ */
+export async function markWalletCreated(uid: string): Promise<void> {
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, "users", uid);
+      await setDoc(userRef, { hasWallet: true }, { merge: true });
+    } catch (e) {
+      console.warn("Failed to mark wallet as created in Firestore", e);
+    }
+  }
+}
+
+/**
+ * Updates the user's username in the database.
+ */
+export async function updateUsername(uid: string, newUsername: string): Promise<void> {
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, "users", uid);
+      await setDoc(userRef, { username: newUsername.trim() }, { merge: true });
+    } catch (e) {
+      console.warn("Failed to update username in Firestore", e);
+      throw e;
+    }
+  }
+}
+
+/**
+ * Directly checks Firestore to see if the user already has a wallet.
+ * This is an independent one-shot query, not affected by reactive state race conditions.
+ */
+export async function checkHasWallet(uid: string): Promise<boolean> {
+  // OPTIMIZATION 1: Check local storage first for instant response
+  const localKey = `aether_wallet_encrypted_${uid}`;
+  if (typeof window !== "undefined" && localStorage.getItem(localKey)) {
+    return true;
+  }
+
+  if (!isFirebaseConfigured || !db) return false;
+  
+  // OPTIMIZATION 2: Strict 3-second timeout for Firestore to prevent blocking the UI
+  try {
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore Timeout")), 3000));
+    const docPromise = getDoc(doc(db, "users", uid));
+    const userDoc = await Promise.race([docPromise, timeoutPromise]) as any;
+    
+    if (userDoc && userDoc.exists && userDoc.exists()) {
+      return userDoc.data().hasWallet === true;
+    }
+  } catch (e) {
+    console.warn("Failed to check hasWallet in Firestore (timeout or network):", e);
+  }
+  return false;
 }

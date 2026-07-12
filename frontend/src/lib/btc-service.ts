@@ -1,6 +1,9 @@
 "use client";
 
-const BLOCKSTREAM_API = "https://blockstream.info/api";
+const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+const BLOCKSTREAM_API = isTestnet
+  ? "https://blockstream.info/testnet/api"
+  : "https://blockstream.info/api";
 
 interface UTXO {
   txid: string;
@@ -50,7 +53,8 @@ export async function sendBTC(
   const tinysecp = await import("tiny-secp256k1");
 
   const ECPair = ECPairFactory(tinysecp);
-  const network = bitcoin.networks.bitcoin;
+  const isTestnet = process.env.NEXT_PUBLIC_NETWORK === "testnet";
+  const network = isTestnet ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
 
   const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKeyHex, "hex"), { network });
   const { address: fromAddress } = bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey, network });

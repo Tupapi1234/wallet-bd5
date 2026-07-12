@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { decryptData, encryptData } from '@/lib/crypto';
 import { deriveAllWallets } from '@/lib/multichain-derivation';
-import { WalletUser } from '@/lib/auth-service';
-import { getSolanaBalance, getSolanaTransactionHistory, getSolanaTokenBalances, SolanaTokenBalance } from '@/lib/solana-service';
+import { WalletUser, markWalletCreated } from '@/lib/auth-service';
+import { getSolanaBalance, getSolanaTransactionHistory, getSolanaTokenBalances, SolanaTokenBalance, getSolanaNFTs } from '@/lib/solana-service';
 import { getBtcBalance, getBtcTransactionHistory } from '@/lib/btc-service';
 import { getBnbBalance, getBnbTransactionHistory } from '@/lib/bnb-service';
+import { fetchLiveCryptoPrices } from '@/lib/price-service';
 
 export interface Transaction {
   id: string;
@@ -49,6 +50,7 @@ interface WalletState {
     theme: 'dark' | 'light';
     language: 'es' | 'en';
     preferredCurrency: 'USD' | 'EUR';
+    autoLockTime: number; // in minutes
   };
   
   // Local wallet addresses (Public keys only)
@@ -67,13 +69,13 @@ interface WalletState {
 
   // Sensitive Volatile State (Exclusively in memory, never saved in plaintext)
   decryptedSeed: string | null;
-  solanaPrivateKey: string | null;
-  bitcoinPrivateKey: string | null;
-  bnbPrivateKey: string | null;
   isUnlocked: boolean;
 
   // Encrypted Local Storage Payload
   encryptedSeedPayload: string | null;
+
+  cryptoPrices: Record<string, number>;
+  isPollingPrices: boolean;
 
   // Transactions Registry History
   transactions: Transaction[];
@@ -97,6 +99,8 @@ interface WalletState {
 
   // Real on-chain data refresh
   refreshAllBalances: () => Promise<void>;
+  refreshNFTs: () => Promise<void>;
+  startPricePolling: () => void;
 
   // Transactions Actions
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'>) => Promise<void>;
@@ -113,6 +117,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     theme: 'dark',
     language: 'es',
     preferredCurrency: 'USD',
+    autoLockTime: 5,
   },
   walletAddresses: null,
   solanaBalance: null,
@@ -121,99 +126,22 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   splTokens: [],
   isFetchingBalance: false,
   decryptedSeed: null,
-  solanaPrivateKey: null,
-  bitcoinPrivateKey: null,
-  bnbPrivateKey: null,
   isUnlocked: false,
   encryptedSeedPayload: null,
+  cryptoPrices: {
+    SOL: 135.20,
+    BTC: 65420.50,
+    BNB: 590.10,
+    USDC: 1.00,
+    USDT: 1.00,
+    BONK: 0.000022
+  },
+  isPollingPrices: false,
   
-  transactions: [
-    {
-      id: 'tx_1',
-      type: 'receive',
-      chain: 'solana',
-      asset: 'SOL',
-      amount: 15.00,
-      amountUSD: 1934.70,
-      recipient: '8xFp5...4aZQ',
-      sender: 'Gq7mY...9kPL',
-      timestamp: '2026-05-28T14:32:00.000Z',
-      status: 'confirmed',
-      fee: 0.000005,
-      feeUSD: 0.0006,
-      hash: '5xY9aK8dH7eJ6fZ5gY4X3w2v1u0t9s8r7q6p5o4n3m2l1k0j9i8h7g6f5e4d3c2b1a'
-    },
-    {
-      id: 'tx_2',
-      type: 'send',
-      chain: 'bitcoin',
-      asset: 'BTC',
-      amount: 0.005,
-      amountUSD: 337.10,
-      recipient: 'bc1qp6y8...7l3k',
-      sender: 'bc1q9x7w...0y3g',
-      timestamp: '2026-05-29T09:15:00.000Z',
-      status: 'confirmed',
-      fee: 0.00012,
-      feeUSD: 8.09,
-      hash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6e5f6'
-    },
-    {
-      id: 'tx_3',
-      type: 'receive',
-      chain: 'bnb',
-      asset: 'BNB',
-      amount: 0.50,
-      amountUSD: 291.20,
-      recipient: '0x9E7C...D170',
-      sender: '0x5a1b...C8e9',
-      timestamp: '2026-05-30T18:45:00.000Z',
-      status: 'confirmed',
-      fee: 0.00045,
-      feeUSD: 0.26,
-      hash: '0x7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f'
-    }
-  ],
+  transactions: [],
 
-  // Initial NFTs digital collections featuring high-end abstract CSS gradient descriptors
-  nfts: [
-    {
-      id: 'nft_1',
-      name: 'Solana Monkey Business #2890',
-      collection: 'Solana Monkey Business',
-      chain: 'solana',
-      imageUrl: 'linear-gradient(135deg, #14F195 0%, #9945FF 100%)',
-      description: 'Exclusive Pixel Monkey generated on the Solana Blockchain. Part of the SMB Gen2 Collection.',
-      mintAddress: 'SMBqwK8dH7eJ6fZ5gY4X3w2v1u0t9s8r7q6p5o4n3m2'
-    },
-    {
-      id: 'nft_2',
-      name: 'DeGods #5621',
-      collection: 'DeGods Solana',
-      chain: 'solana',
-      imageUrl: 'linear-gradient(135deg, #FF3B30 0%, #FF9500 100%)',
-      description: 'Defi-focused collectible depicting detailed deity portraits. Fully native to Solana.',
-      mintAddress: 'DeGods9kPL8h7g6f5e4d3c2b1a5xY9aK8dH7eJ6fZ5g'
-    },
-    {
-      id: 'nft_3',
-      name: 'Pancake Bunnies #108',
-      collection: 'Pancake Bunnies',
-      chain: 'bnb',
-      imageUrl: 'linear-gradient(135deg, #FFB900 0%, #FF5000 100%)',
-      description: 'Adorable generative bunny card celebrating BSC PancakeSwap farming milestones.',
-      mintAddress: '0xPancake8f9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6'
-    },
-    {
-      id: 'nft_4',
-      name: 'CyberPunk BEP-721 #034',
-      collection: 'CyberPunks BNB',
-      chain: 'bnb',
-      imageUrl: 'linear-gradient(135deg, #00C7FF 0%, #0040FF 100%)',
-      description: 'Futuristic sci-fi profiles styled for BEP-721 BNB Smart Chain smart contracts.',
-      mintAddress: '0xCPBEP3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b'
-    }
-  ],
+  // NFTs are loaded from blockchain dynamically
+  nfts: [],
 
   connectedDApps: [
     {
@@ -226,29 +154,31 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   ],
 
   setUser: (user) => {
+    if (user) {
+      const currentUser = get().user;
+      if (currentUser?.hasWallet === true && user.hasWallet !== true) {
+        user = { ...user, hasWallet: true };
+      }
+    }
     set({ user });
     if (user) {
       get().loadEncryptedWallet(user.uid);
       
-      // Load user specific settings from localStorage if they exist
       const storedSettings = localStorage.getItem(`aether_settings_${user.uid}`);
       if (storedSettings) {
         set((state) => ({ settings: { ...state.settings, ...JSON.parse(storedSettings) } }));
       }
 
-      // Load user specific transactions from localStorage if they exist
       const storedTxs = localStorage.getItem(`aether_txs_${user.uid}`);
       if (storedTxs) {
         set({ transactions: JSON.parse(storedTxs) });
       }
 
-      // Load user specific NFTs from localStorage if they exist
       const storedNFTs = localStorage.getItem(`aether_nfts_${user.uid}`);
       if (storedNFTs) {
         set({ nfts: JSON.parse(storedNFTs) });
       }
 
-      // Load user specific dApps from localStorage if they exist
       const storedDApps = localStorage.getItem(`aether_dapps_${user.uid}`);
       if (storedDApps) {
         set({ connectedDApps: JSON.parse(storedDApps) });
@@ -274,9 +204,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       encryptedSeedPayload: payload,
       isUnlocked: false,
       decryptedSeed: null,
-      solanaPrivateKey: null,
-      bitcoinPrivateKey: null,
-      bnbPrivateKey: null,
       walletAddresses: null
     });
   },
@@ -285,19 +212,17 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const user = get().user;
     if (!user) throw new Error("Debes iniciar sesión antes de crear una billetera.");
 
-    // Encrypt seed phrase locally using the user's PIN
     const encryptedPayload = await encryptData(mnemonic.trim(), pin);
     localStorage.setItem(`aether_wallet_encrypted_${user.uid}`, encryptedPayload);
 
-    // Derive all three target network wallets in parallel
     const wallets = await deriveAllWallets(mnemonic);
+
+    await markWalletCreated(user.uid);
+    set({ user: { ...user, hasWallet: true } });
 
     set({
       encryptedSeedPayload: encryptedPayload,
       decryptedSeed: mnemonic,
-      solanaPrivateKey: wallets.solana.privateKeyBase58,
-      bitcoinPrivateKey: wallets.bitcoin.privateKeyHex,
-      bnbPrivateKey: wallets.bnb.privateKeyHex,
       walletAddresses: {
         solana: wallets.solana.publicKey,
         bitcoin: wallets.bitcoin.address,
@@ -310,7 +235,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   importWallet: async (mnemonic, pin) => {
-    // Importing works identically to creating: encrypt and store
     await get().createWallet(mnemonic, pin);
   },
 
@@ -320,17 +244,11 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       throw new Error("No hay billetera configurada para este usuario.");
     }
 
-    // Decrypt the local payload with the user input PIN
     const seed = await decryptData(encryptedSeedPayload, pin);
-    
-    // Once decrypted, derive keys for all networks in parallel
     const wallets = await deriveAllWallets(seed);
 
     set({
       decryptedSeed: seed,
-      solanaPrivateKey: wallets.solana.privateKeyBase58,
-      bitcoinPrivateKey: wallets.bitcoin.privateKeyHex,
-      bnbPrivateKey: wallets.bnb.privateKeyHex,
       walletAddresses: {
         solana: wallets.solana.publicKey,
         bitcoin: wallets.bitcoin.address,
@@ -339,16 +257,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       isUnlocked: true
     });
 
-    // Fetch real Solana balance after unlocking
     get().refreshAllBalances();
   },
 
   lockWallet: () => {
     set({
       decryptedSeed: null,
-      solanaPrivateKey: null,
-      bitcoinPrivateKey: null,
-      bnbPrivateKey: null,
       walletAddresses: null,
       isUnlocked: false
     });
@@ -359,9 +273,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       user: null,
       walletAddresses: null,
       decryptedSeed: null,
-      solanaPrivateKey: null,
-      bitcoinPrivateKey: null,
-      bnbPrivateKey: null,
       isUnlocked: false,
       encryptedSeedPayload: null
     });
@@ -372,6 +283,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     if (!walletAddresses) return;
 
     set({ isFetchingBalance: true });
+    
+    // Also refresh NFTs asynchronously
+    get().refreshNFTs();
 
     // Fetch all three chains + SPL tokens in parallel
     const [solResult, btcResult, bnbResult, splResult] = await Promise.allSettled([
@@ -470,14 +384,48 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     // Sort all transactions by date (newest first)
     allTxs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    if (allTxs.length > 0) {
-      set({ transactions: allTxs });
-      if (user) {
-        localStorage.setItem(`aether_txs_${user.uid}`, JSON.stringify(allTxs));
-      }
+    set({ transactions: allTxs });
+    if (user) {
+      localStorage.setItem(`aether_txs_${user.uid}`, JSON.stringify(allTxs));
     }
 
     set({ isFetchingBalance: false });
+  },
+
+  refreshNFTs: async () => {
+    const { walletAddresses } = get();
+    if (walletAddresses?.solana) {
+      try {
+        const fetchedNFTs = await getSolanaNFTs(walletAddresses.solana);
+        set({ nfts: fetchedNFTs });
+        
+        // Update local storage
+        const user = get().user;
+        if (user) {
+          localStorage.setItem(`aether_nfts_${user.uid}`, JSON.stringify(fetchedNFTs));
+        }
+      } catch (err) {
+        console.error("Error fetching NFTs:", err);
+      }
+    }
+  },
+
+  startPricePolling: () => {
+    if (get().isPollingPrices) return;
+    set({ isPollingPrices: true });
+
+    const fetchPrices = async () => {
+      const prices = await fetchLiveCryptoPrices();
+      set({ cryptoPrices: prices });
+    };
+
+    // Fetch immediately
+    fetchPrices();
+
+    // Poll every 60 seconds
+    setInterval(() => {
+      fetchPrices();
+    }, 60000);
   },
 
   addTransaction: async (tx) => {

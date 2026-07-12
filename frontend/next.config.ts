@@ -1,8 +1,15 @@
 import type { NextConfig } from "next";
+import withPWAInit from "@ducanh2912/next-pwa";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development",
+  register: true,
+});
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@solana/web3.js", "bitcoinjs-lib"],
   webpack: (config) => {
-    // Habilitar WebAssembly para tiny-secp256k1 (requerido por bitcoinjs-lib)
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
@@ -11,8 +18,15 @@ const nextConfig: NextConfig = {
       test: /\.wasm$/,
       type: "webassembly/async",
     });
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+      crypto: false,
+    };
     return config;
   },
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
