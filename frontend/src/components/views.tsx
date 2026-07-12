@@ -1613,17 +1613,6 @@ export function MultichainDashboardView({ language }: MultichainDashboardViewPro
               </div>
             </div>
 
-            {/* Buy Crypto Button (Fiat Onramp Simulator) */}
-            <button 
-              onClick={() => {
-                setSimulationStatus("idle");
-                setShowFiatSimulator(true);
-              }}
-              className="w-full mb-4 py-3.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold text-sm tracking-wide transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 group"
-            >
-              <CreditCard className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              {language === "es" ? "Comprar Cripto" : "Buy Crypto"}
-            </button>
 
             {/* Network Selector Bar */}
             <div className="p-1 rounded-2xl bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 grid grid-cols-3 gap-1">

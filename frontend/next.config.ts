@@ -5,6 +5,11 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
+  reloadOnOnline: true,
+  workboxOptions: {
+    disableDevLogs: true,
+    exclude: [/\.map$/, /asset-manifest\.json$/, /sw\.js$/],
+  },
 });
 
 const nextConfig: NextConfig = {

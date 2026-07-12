@@ -192,10 +192,15 @@ export async function sendSOL(
  * Retorna la comisión en SOL.
  */
 export async function estimateSolanaFee(): Promise<number> {
-  const connection = getSolanaConnection();
-  const { feeCalculator } = await connection.getRecentBlockhash();
-  // Una transacción simple de transferencia usa 1 firma = 5000 lamports aprox
-  return (feeCalculator?.lamportsPerSignature ?? 5000) / LAMPORTS_PER_SOL;
+  try {
+    const connection = getSolanaConnection();
+    const { value } = await connection.getFeeForMessage(
+      new Transaction().compileMessage()
+    );
+    return (value ?? 5000) / LAMPORTS_PER_SOL;
+  } catch {
+    return 5000 / LAMPORTS_PER_SOL;
+  }
 }
 
 /**
